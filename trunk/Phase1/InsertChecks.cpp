@@ -26,7 +26,7 @@ using namespace std;
 
 namespace
 {
-        STATISTIC(numStaticArrays, "Total number of static-sized arrays allocated.");
+        STATISTIC(numArrayAccesses, "Total number of getElementPtr instructions.");
 
 	class InsertChecks : public FunctionPass
 	{
@@ -38,23 +38,19 @@ namespace
 		{
 			errs() << "InsertChecks\n";
 
-			// Start by finding all of the static array allocations.
-                        // This is incomplete. Globals aren't alloca'd.
-                        // It's also unnecessary since it seems that the pointer's type itself contains the array
-                        // bounds.
-                        numStaticArrays = 0;
+                        // Start by finding all of the getArrayIndex instances.
+                        numArrayAccesses = 0;
 			for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
-                                AllocaInst *A = dynamic_cast<AllocaInst *>(&(*I));
-                                if (A != NULL) {
-                                  // A->isArrayAllocation() is always false, but the type of the pointer A returns
-                                  // does include the size, which can be used to distinguish arrays.
-                                  const Type *T = A->getType()->getTypeAtIndex(unsigned(0));
-                                  const ArrayType *U = dynamic_cast<const ArrayType*>(T);
-                                  if (U != NULL) {
-                                    errs() << *A << '\n' << *U << '\n';
-                                    numStaticArrays++;
-                                  }
-                                }
+                                GetElementPtrInst *P = dynamic_cast<GetElementPtrInst *>(&(*I));
+                                if (P == NULL) continue;
+                                const Type *T = P->getPointerOperand()->getType();
+                                const PointerType *PT = dynamic_cast<const PointerType*>(T);
+                                if (PT == NULL) continue;
+                                const ArrayType *U = dynamic_cast<const ArrayType*>(PT->getTypeAtIndex(0u));
+                                if (U == NULL) continue;
+
+                                errs() << *P << '\n' << *U << '\n';
+                                numArrayAccesses++;
 			}
 
 			/* Create exit condition BB
