@@ -7,6 +7,12 @@
 //Run using:
 //opt -load ../../Release/lib/Phase1.so -InsertChecks -OptimizeChecks -time-passes < *.bc > /dev/null
 
+#define DEBUG_TYPE "Optimizechecks"
+
+#define __STDC_LIMIT_MACROS
+#define __STDC_CONSTANT_MACROS
+#include <stdint.h>
+
 #include "llvm/Pass.h"
 #include "llvm/Function.h"
 #include "llvm/Support/raw_ostream.h"

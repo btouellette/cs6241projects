@@ -1,0 +1,17 @@
+# CS6241 Project Phase 1 - Alternate Makefile                   Chad D. Kersey
+# With this makefile, there's no need to place the code inside of the LLVM
+# directory structure.
+
+passeslib = phase1.so
+sources = InsertChecks.cpp OptimizeChecks.cpp
+
+LD = llvm-ld
+CXX = llvm-g++
+LDFLAGS = -shared
+CXXFLAGS = -fPIC -g
+
+$(passeslib): $(sources)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $(sources)
+
+clean:
+	rm -f $(passeslib) *~ \#*
