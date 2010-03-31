@@ -7,7 +7,7 @@
 //Run using:
 //opt -load ../../Release/lib/Phase1.so -InsertChecks -OptimizeChecks -time-passes < *.bc > /dev/null
 
-#define DEBUG_TYPE "Optimizechecks"
+#define DEBUG_TYPE "OptimizeChecks"
 
 #define __STDC_LIMIT_MACROS
 #define __STDC_CONSTANT_MACROS

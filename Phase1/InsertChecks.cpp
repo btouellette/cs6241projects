@@ -15,15 +15,22 @@
 
 #include "llvm/Pass.h"
 #include "llvm/Function.h"
+#include "llvm/Instructions.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/InstIterator.h"
 
+#include "llvm/ADT/Statistic.h"
+
 using namespace llvm;
+using namespace std;
 
 namespace
 {
-	struct InsertChecks : public FunctionPass
+        STATISTIC(numStaticArrays, "Total number of static-sized arrays allocated.");
+
+	class InsertChecks : public FunctionPass
 	{
+        public:
 		static char ID;
 		InsertChecks() : FunctionPass(&ID) {}
 
@@ -31,10 +38,25 @@ namespace
 		{
 			errs() << "InsertChecks\n";
 
-			//Iterates over all instructions in the function
-			for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I)
-				errs() << *I << "\n";
-			
+			// Start by finding all of the static array allocations.
+                        // This is incomplete. Globals aren't alloca'd.
+                        // It's also unnecessary since it seems that the pointer's type itself contains the array
+                        // bounds.
+                        numStaticArrays = 0;
+			for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
+                                AllocaInst *A = dynamic_cast<AllocaInst *>(&(*I));
+                                if (A != NULL) {
+                                  // A->isArrayAllocation() is always false, but the type of the pointer A returns
+                                  // does include the size, which can be used to distinguish arrays.
+                                  const Type *T = A->getType()->getTypeAtIndex(unsigned(0));
+                                  const ArrayType *U = dynamic_cast<const ArrayType*>(T);
+                                  if (U != NULL) {
+                                    errs() << *A << '\n' << *U << '\n';
+                                    numStaticArrays++;
+                                  }
+                                }
+			}
+
 			/* Create exit condition BB
 			 * Check for getelementptr (array accesses) instructions
 			 * Either get array size from inbounds keyword or from original array def (alloca)
