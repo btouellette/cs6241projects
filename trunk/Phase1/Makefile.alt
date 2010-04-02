@@ -10,13 +10,14 @@ CXX = llvm-g++
 LDFLAGS = -shared
 CXXFLAGS = -fPIC -g
 
-all: $(passeslib) hello.bc
+all: $(passeslib) hello.bc hello.s
 
 $(passeslib): $(sources)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $(sources)
 
-hello.bc: hello.c
+hello.bc hello.s: hello.c
 	llvm-gcc --emit-llvm -c hello.c -o hello.bc
+	llvm-gcc --emit-llvm -S hello.c 
 
 clean:
 	rm -f $(passeslib) *~ \#*

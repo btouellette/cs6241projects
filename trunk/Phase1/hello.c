@@ -1,7 +1,6 @@
 #include <stdio.h>
 
-const char *g_s = "This is not really an array.";
-unsigned g_a[123][45];
+unsigned Global[123][45];
 
 int main() {
         unsigned i;
@@ -11,7 +10,12 @@ int main() {
 	int y[9][21];
 	y[8][20]=202;
 
-        g_a[54][40]=303;
+        Global[0][0]=0;
+
+        int a = 54;
+        int b = 25 + 15;
+        Global[a][b]=303;
+
 
 	/*int m = 4;
 	int n = 3;
