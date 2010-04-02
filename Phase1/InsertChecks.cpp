@@ -1,11 +1,14 @@
-//LLVM Bounds Checking Insertion Pass
-//CS 6241 Project Phase 1
-//Brian Ouellette
-//Chad Kersey
-//Gaurav Gupta
+/*
+ LLVM Bounds Checking Insertion Pass
+ CS 6241 Project Phase 1
+ Brian Ouellette
+ Chad Kersey
+ Gaurav Gupta
 
-//Run using:
-//opt -load ../../Release/lib/Phase1.so -InsertChecks -time-passes < *.bc > /dev/null
+ Run using:
+ opt -load ../../Release/lib/Phase1.so -InsertChecks -time-passes < *.bc > \
+  /dev/null
+*/
 
 #define DEBUG_TYPE "InsertChecks"
 
@@ -13,9 +16,13 @@
 #define __STDC_CONSTANT_MACROS
 #include <stdint.h>
 
+#include <vector>
+
 #include "llvm/Pass.h"
+#include "llvm/Module.h"
 #include "llvm/Function.h"
 #include "llvm/Instructions.h"
+#include "llvm/DerivedTypes.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/InstIterator.h"
 
@@ -37,6 +44,11 @@ namespace
     virtual bool runOnFunction(Function &F)
     {
       errs() << "InsertChecks\n";
+
+      const IntegerType *Int64Ty = Type::getInt64Ty(F.getContext());
+      const Type *VoidTy = Type::getVoidTy(F.getContext());
+
+      Module *M = F.getParent();
  
       // Find all getElementPtr instances and add instrumentation.
       numArrayAccesses = 0;
@@ -57,16 +69,18 @@ namespace
         const uint64_t n = U->getNumElements();
         errs() << *P << '\n' << *U << '\n' << n << " elements.\n\n";
         numArrayAccesses++;
-      }
 
-      /* Create exit condition BB
-       * Check for getelementptr (array accesses) instructions
-       * Either get array size from inbounds keyword or from original array 
-       * def (alloca)
-       * Add check that exits to new BB
-       * Cleanup CFG by splitting original BB?
-       */ 
-			
+        // Add call to bounds-checking function before the getElementPtr. This 
+        // should get inlined away.
+        vector<const Type*> ArgTypes(2);
+        ArgTypes[0] = ArgTypes[1] = Int64Ty;
+        FunctionType *ChkType = FunctionType::get(VoidTy, ArgTypes, false);
+        Constant *Chk = M->getOrInsertFunction("__checkArrayBounds", ChkType);
+
+        Value* args[] = {ConstantInt::get(Int64Ty, n, true), P->getOperand(2)};
+        CallInst *CI = CallInst::Create(Chk, &args[0], &args[2], "", &(*I));
+    }
+
       //Possibly modified function so return true
       return true;
     }
