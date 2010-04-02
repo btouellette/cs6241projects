@@ -3,13 +3,11 @@
 
 unsigned Global[123][45];
 
-extern void __checkArrayBounds(int64_t max, int64_t idx);
-
 int main() {
   unsigned i;
   int x[55];
   x[13]=101;
-	
+
   int y[9][21];
   y[8][20]=202;
 
@@ -27,4 +25,9 @@ int main() {
      int n = 3;
      int z[m][n];
      z[2][3]=303;*/
+
+   // An illegal read access. This should halt program execution.
+   y[0][0] = y[0][21];
+
+   return 0;
 }
