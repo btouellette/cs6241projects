@@ -33,7 +33,8 @@ using namespace std;
 
 namespace
 {
-  STATISTIC(numArrayAccesses, "Total number of getElementPtr instructions.");
+  STATISTIC(numArrayAccesses, "Number of getElementPtr instructions.");
+  STATISTIC(numChecksAdded, "Number of bounds checks inserted.");
 
   class InsertChecks : public FunctionPass
   {
@@ -51,7 +52,6 @@ namespace
       Module *M = F.getParent();
  
       // Find all getElementPtr instances and add instrumentation.
-      numArrayAccesses = 0;
       for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
 
         GetElementPtrInst *P = dynamic_cast<GetElementPtrInst *>(&(*I));
@@ -79,6 +79,8 @@ namespace
 
         Value* args[] = {ConstantInt::get(Int64Ty, n, true), P->getOperand(2)};
         CallInst *CI = CallInst::Create(Chk, &args[0], &args[2], "", &(*I));
+
+        numChecksAdded++;
     }
 
       //Possibly modified function so return true
