@@ -8,6 +8,9 @@
  Run using:
  opt -load ../../Release/lib/Phase1.so -InsertChecks -time-passes < *.bc > \
   /dev/null
+
+ Issue: Prevent code from trying to run on structs which are also dereferenced
+        via GEP
 */
 
 #define DEBUG_TYPE "InsertChecks"
@@ -52,8 +55,10 @@ namespace
       Module *M = F.getParent();
  
       // Find all getElementPtr instances and add instrumentation.
+	  // Iterate over Instructions in Function
       for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
 
+		// Ensure instruction is of GEP type
         GetElementPtrInst *P = dynamic_cast<GetElementPtrInst *>(&(*I));
         if (P == NULL) continue;
 
@@ -61,6 +66,7 @@ namespace
         const PointerType *PT = dynamic_cast<const PointerType*>(T);
         if (PT == NULL) continue;
 
+		// Retrieve the array being dereferenced 
         const ArrayType *U = 
           dynamic_cast<const ArrayType*>(PT->getTypeAtIndex(0u));
         if (U == NULL) continue;
@@ -75,8 +81,10 @@ namespace
         vector<const Type*> ArgTypes(2);
         ArgTypes[0] = ArgTypes[1] = Int64Ty;
         FunctionType *ChkType = FunctionType::get(VoidTy, ArgTypes, false);
+		// Insert or retrieve the checking function into the program Module
         Constant *Chk = M->getOrInsertFunction("__checkArrayBounds", ChkType);
 
+		// Inject the correct indexes into the checking function
         Value* args[] = {ConstantInt::get(Int64Ty, n, true), P->getOperand(2)};
         CallInst *CI = CallInst::Create(Chk, &args[0], &args[2], "", &(*I));
 
