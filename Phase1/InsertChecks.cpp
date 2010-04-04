@@ -56,41 +56,28 @@ namespace
  
       // Find all getElementPtr instances and add instrumentation.
 	  // Iterate over Instructions in Function
+      Value *prev_ub = 0;
       for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
+        if (!I->getName().str().compare(0, 12, "_arrayref ub")) prev_ub = &(*I);
+        if (!I->getName().str().compare(0, 13, "_arrayref idx")) {
+          numArrayAccesses++;
+          numChecksAdded++;
+          
+          // Add bounds-checking function call
+          vector<const Type*> ArgTypes(2);
+          ArgTypes[0] = ArgTypes[1] = Int64Ty;
+          FunctionType *ChkType = FunctionType::get(VoidTy, ArgTypes, false);
+          // Insert or retrieve the checking function into the program Module
+          Constant *Chk = M->getOrInsertFunction("__checkArrayBounds", ChkType);
 
-		// Ensure instruction is of GEP type
-        GetElementPtrInst *P = dynamic_cast<GetElementPtrInst *>(&(*I));
-        if (P == NULL) continue;
-
-        const Type *T = P->getPointerOperand()->getType();
-        const PointerType *PT = dynamic_cast<const PointerType*>(T);
-        if (PT == NULL) continue;
-
-		// Retrieve the array being dereferenced 
-        const ArrayType *U = 
-          dynamic_cast<const ArrayType*>(PT->getTypeAtIndex(0u));
-        if (U == NULL) continue;
-        
-        // Get array size.
-        const uint64_t n = U->getNumElements();
-        errs() << *P << '\n' << *U << '\n' << n << " elements.\n\n";
-        numArrayAccesses++;
-
-        // Add call to bounds-checking function before the getElementPtr. This 
-        // should get inlined away.
-        vector<const Type*> ArgTypes(2);
-        ArgTypes[0] = ArgTypes[1] = Int64Ty;
-        FunctionType *ChkType = FunctionType::get(VoidTy, ArgTypes, false);
-		// Insert or retrieve the checking function into the program Module
-        Constant *Chk = M->getOrInsertFunction("__checkArrayBounds", ChkType);
-
-		// Inject the correct indexes into the checking function
-        Value* args[] = {ConstantInt::get(Int64Ty, n, true), P->getOperand(2)};
-        CallInst *CI = CallInst::Create(Chk, &args[0], &args[2], "", &(*I));
-
-        numChecksAdded++;
-    }
-
+          // Inject the correct indexes into the checking function
+          Value* args[] = {prev_ub, &(*I)};
+          Value* const* ArgsBeg = &args[0];
+          Value* const* ArgsEnd = &args[2];
+          CallInst *CI = CallInst::Create(Chk, ArgsBeg, ArgsEnd, "");
+          CI->insertAfter(&(*I));
+        }
+      }
       //Possibly modified function so return true
       return true;
     }

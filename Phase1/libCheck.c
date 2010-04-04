@@ -26,15 +26,15 @@ void __checkArrayBounds(int64_t max, int64_t idx) {
   // check. Unless DEBUG is defined. Then it might be too big to inline.
   #ifdef DEBUG
   printf("Checking array index %lld vs. max of %lld.\n", 
-         (long long)idx, (long long)max-1);
+         (long long)idx, (long long)max);
   #endif
-  if ( (uint64_t)idx >= max ) indexOutOfBounds(max, idx);
+  if ( (uint64_t)idx > max ) indexOutOfBounds(max, idx);
 }
 
 static void indexOutOfBounds(int64_t max, int64_t idx) {
   fprintf(stderr, 
           "Array index %lld exceeds max of %lld. Terminating.\n", 
-          (long long)idx, (long long)max-1
+          (long long)idx, (long long)max
   );
 
   exit(1);

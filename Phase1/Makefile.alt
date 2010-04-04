@@ -10,17 +10,25 @@ CXX = llvm-g++
 LDFLAGS = -shared
 CXXFLAGS = -fPIC -g
 
-all: $(passeslib) hello.bc hello.s libCheck.bc
+all: $(passeslib) test hello.s libCheck.bc
 
 $(passeslib): $(sources)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $(sources)
 
-hello.bc hello.s: hello.c
+test : hello2.bc libCheck.bc
+	llvm-ld -o $@ hello2.bc libCheck.bc
+
+hello2.bc : hello.bc $(passeslib)
+	opt -f -load ./$(passeslib) -InsertChecks -stats -o $@ $<
+
+hello.bc : hello.c
 	llvm-gcc --emit-llvm -c hello.c -o hello.bc
+
+hello.s : hello.c
 	llvm-gcc --emit-llvm -S hello.c 
 
 libCheck.bc : libCheck.c
 	llvm-gcc --emit-llvm -c libCheck.c -o libCheck.bc
 
 clean:
-	rm -f $(passeslib) *~ \#*
+	rm -f $(passeslib) test *.bc *.s *~ \#*
