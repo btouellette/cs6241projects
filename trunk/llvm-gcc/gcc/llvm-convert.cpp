@@ -6459,30 +6459,35 @@ LValue TreeToLLVM::EmitLV_ARRAY_REF(tree exp) {
   // bounds and indices. It will break in languages with non-zero array lower
   // bounds.
   if (TREE_CODE(ArrayTreeType) == ARRAY_TYPE) {
-    Value *UBExpr = Emit(array_ref_up_bound(exp), 0);
-    unsigned ub_bits = UBExpr->getType()->getPrimitiveSizeInBits();
-    unsigned idx_bits = IndexVal->getType()->getPrimitiveSizeInBits();
-    llvm::Instruction::CastOps UBCast;
-    llvm::Instruction::CastOps IdxCast;
+    tree upper_bound = array_ref_up_bound(exp);
 
-    if (ub_bits == 64) UBCast = Instruction::BitCast;
-    else if (ub_bits < 64) UBCast = Instruction::ZExt;
-    else UBCast = Instruction::Trunc;
+    // upper_bound NULL if it is unknown. Keep the compiler from crashing.
+    if (upper_bound != 0) {
+      Value *UBExpr = Emit(upper_bound, 0);
+      unsigned ub_bits = UBExpr->getType()->getPrimitiveSizeInBits();
+      unsigned idx_bits = IndexVal->getType()->getPrimitiveSizeInBits();
+      llvm::Instruction::CastOps UBCast;
+      llvm::Instruction::CastOps IdxCast;
 
-    if (idx_bits == 64) IdxCast = Instruction::BitCast;
-    else if (idx_bits < 64) IdxCast = Instruction::ZExt;
-    else IdxCast = Instruction::Trunc;
+      if (ub_bits == 64) UBCast = Instruction::BitCast;
+      else if (ub_bits < 64) UBCast = Instruction::ZExt;
+      else UBCast = Instruction::Trunc;
 
-    CastInst::Create(UBCast,
-                     UBExpr,
-                     Type::getInt64Ty(Context),
-                     "_arrayref ub", 
-                     &(Fn->back()));
-    CastInst::Create(IdxCast,
-                     IndexVal,
-                     Type::getInt64Ty(Context),
-                     "_arrayref idx",
-                     &(Fn->back()));
+      if (idx_bits == 64) IdxCast = Instruction::BitCast;
+      else if (idx_bits < 64) IdxCast = Instruction::ZExt;
+      else IdxCast = Instruction::Trunc;
+
+      CastInst::Create(UBCast,
+                       UBExpr,
+                       Type::getInt64Ty(Context),
+                       "_arrayref ub", 
+                       &(Fn->back()));
+      CastInst::Create(IdxCast,
+                       IndexVal,
+                       Type::getInt64Ty(Context),
+                       "_arrayref idx",
+                       &(Fn->back()));
+    }
   }
 
   const Type *IntPtrTy = getTargetData().getIntPtrType(Context);

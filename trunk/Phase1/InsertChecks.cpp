@@ -45,17 +45,19 @@ namespace
     static char ID;
     InsertChecks() : FunctionPass(&ID) {}
 
+    virtual bool doInitialization(Module &m) 
+    {
+      numArrayAccesses = numChecksAdded = 0;
+    }
+
     virtual bool runOnFunction(Function &F)
     {
-      errs() << "InsertChecks\n";
-
       const IntegerType *Int64Ty = Type::getInt64Ty(F.getContext());
       const Type *VoidTy = Type::getVoidTy(F.getContext());
 
       Module *M = F.getParent();
  
-      // Find all getElementPtr instances and add instrumentation.
-	  // Iterate over Instructions in Function
+      // Find all annotated lines and add call to bounds check.
       Value *prev_ub = 0;
       for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
         if (!I->getName().str().compare(0, 12, "_arrayref ub")) prev_ub = &(*I);
@@ -72,8 +74,8 @@ namespace
 
           // Inject the correct indexes into the checking function
           Value* args[] = {prev_ub, &(*I)};
-          Value* const* ArgsBeg = &args[0];
-          Value* const* ArgsEnd = &args[2];
+          Value* const* ArgsBeg = args;
+          Value* const* ArgsEnd = args + 2;
           CallInst *CI = CallInst::Create(Chk, ArgsBeg, ArgsEnd, "");
           CI->insertAfter(&(*I));
         }

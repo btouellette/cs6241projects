@@ -11,8 +11,6 @@
  So don't forget to run the inliner after adding bounds checks.
 */
 
-#define DEBUG
-
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,9 +23,12 @@ void __checkArrayBounds(int64_t max, int64_t idx) {
   // the unsigned version of idx is also < max, and there only has to be one
   // check. Unless DEBUG is defined. Then it might be too big to inline.
   #ifdef DEBUG
-  printf("Checking array index %lld vs. max of %lld.\n", 
-         (long long)idx, (long long)max);
+  static uint64_t n_checks = 0;
+
+  printf("%10llu: Checking array index %lld vs. max of %lld.\n", 
+         (unsigned long long)n_checks++, (long long)idx, (long long)max);
   #endif
+
   if ( (uint64_t)idx > max ) indexOutOfBounds(max, idx);
 }
 
