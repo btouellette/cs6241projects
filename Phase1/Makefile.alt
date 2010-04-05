@@ -10,25 +10,22 @@ CXX = llvm-g++
 LDFLAGS = -shared
 CXXFLAGS = -fPIC -g
 
-all: $(passeslib) test hello.s libCheck.bc
+all: $(passeslib) libCheck.bc testcases.bc
 
 $(passeslib): $(sources)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $(sources)
 
-test : hello2.bc libCheck.bc
-	llvm-ld -o $@ hello2.bc libCheck.bc
-
-hello2.bc : hello.bc $(passeslib)
-	opt -f -load ./$(passeslib) -InsertChecks -stats -o $@ $<
-
-hello.bc : hello.c
-	llvm-gcc --emit-llvm -c hello.c -o hello.bc
-
-hello.s : hello.c
-	llvm-gcc --emit-llvm -S hello.c 
+testcases.bc : libCheck-debug.bc testcases.c
+	llvm-gcc -o tmp0.bc --emit-llvm -c testcases.c
+	opt -f -load ./phase1.so -InsertChecks -o tmp1.bc tmp0.bc
+	llvm-ld -o testcases tmp1.bc libCheck-debug.bc
+	rm tmp0.bc tmp1.bc
 
 libCheck.bc : libCheck.c
 	llvm-gcc --emit-llvm -c libCheck.c -o libCheck.bc
 
+libCheck-debug.bc : libCheck.c
+	llvm-gcc --emit-llvm -DDEBUG -c libCheck.c -o libCheck-debug.bc
+
 clean:
-	rm -f $(passeslib) test *.bc *.s *~ \#*
+	rm -f $(passeslib) testcases *.bc *.s *~ \#*

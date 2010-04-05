@@ -1,0 +1,35 @@
+LAME MP3 Encoder benchmark
+==========================
+
+2429 array bounds checks are added to the code by InsertChecks.
+
+After the standard optimizations, the size of the x86-64 executables are:
+
+   Bytes  | File
+ ---------+----------------
+   240201 | lame-checked
+   226598 | lame-unchecked
+
+Adding these 2429 checks adds 14503 bytes to the size of the executable, or 5.97
+bytes per bounds check on average, including the short stub function that
+handles program termination on out-of-bounds dereference.
+
+
+In the encoding of a typical musical sample:
+   2 567 383 411 dynamic checks are performed.
+
+   The execution time overhead for checks, averaged over 10 runs on an Intel 
+   Core i5 at 2.67GHz: 6.1%
+
+play/CPU time as reported by LAME, used to compute overhead average:
+     Checked   Unchecked
+ 1:   36.8      38.4
+ 2:   37.0      39.0
+ 3:   36.8      39.0
+ 4:   36.7      38.0
+ 5:   36.2      39.3
+ 6:   36.2      39.0
+ 7:   36.7      38.6
+ 8:   36.5      39.1
+ 9:   36.6      38.9
+10:   36.6      39.2

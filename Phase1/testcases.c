@@ -28,5 +28,10 @@ int main(int argc, char** argv) {
    // An illegal read access. This should halt program execution.
    y[0][0] = y[0][20];
 
+   // Whether the follwing check succeeds depends on the number of arguements
+   // passed to the program.
+   char w[argc];
+   w[argc/2 + 1] = 123;
+
    return 0;
 }
