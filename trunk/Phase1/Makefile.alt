@@ -1,31 +1,19 @@
-# CS6241 Project Phase 1 - Alternate Makefile                   Chad D. Kersey
-# With this makefile, there's no need to place the code inside of the LLVM
-# directory structure.
+# Makefile for bounds checking insertion/optimization
 
-passeslib = phase1.so
-sources = InsertChecks.cpp OptimizeChecks.cpp
+# Path to top level of LLVM hierarchy
+LEVEL = ../..
 
-LD = llvm-ld
-CXX = llvm-g++
-LDFLAGS = -shared
-CXXFLAGS = -fPIC -g
+# Name of the library to build
+LIBRARYNAME = Phase1
 
-all: $(passeslib) libCheck.bc testcases.bc
+# Make the shared library become a loadable module so the tools can 
+# dlopen/dlsym on the resulting library.
+LOADABLE_MODULE = 1
 
-$(passeslib): $(sources)
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $(sources)
+# Tell the build system which LLVM libraries your pass needs. You'll probably
+# need at least LLVMSystem.a, LLVMSupport.a, LLVMCore.a but possibly several
+# others too.
+LLVMLIBS = LLVMSupport.a LLVMSystem.a
 
-testcases.bc : libCheck-debug.bc testcases.c
-	llvm-gcc -o tmp0.bc --emit-llvm -c testcases.c
-	opt -f -load ./phase1.so -InsertChecks -o tmp1.bc tmp0.bc
-	llvm-ld -o testcases tmp1.bc libCheck-debug.bc
-	rm tmp0.bc tmp1.bc
-
-libCheck.bc : libCheck.c
-	llvm-gcc --emit-llvm -c libCheck.c -o libCheck.bc
-
-libCheck-debug.bc : libCheck.c
-	llvm-gcc --emit-llvm -DDEBUG -c libCheck.c -o libCheck-debug.bc
-
-clean:
-	rm -f $(passeslib) testcases *.bc *.s *~ \#*
+# Include the makefile implementation stuff
+include $(LEVEL)/Makefile.common
