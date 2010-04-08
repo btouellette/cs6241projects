@@ -45,7 +45,7 @@ namespace
     static char ID;
     InsertChecks() : FunctionPass(&ID) {}
 
-    virtual bool doInitialization(Module &m) 
+    virtual bool doInitialization(Module &M) 
     {
       numArrayAccesses = numChecksAdded = 0;
     }
@@ -87,7 +87,7 @@ namespace
     //Add required analyses here
     void getAnalysisUsage(AnalysisUsage &AU) const
     {
-      AU.setPreservesCFG();
+
     }
   };
 
