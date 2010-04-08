@@ -20,15 +20,26 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/InstIterator.h"
 
+#include "llvm/ADT/Statistic.h"
+
 using namespace llvm;
 using namespace std;
 
 namespace
 {
+  STATISTIC(numChecksDeleted, "Number of bounds checks deleted.");
+
   struct OptimizeChecks : public FunctionPass
   {
+  public:
     static char ID;
     OptimizeChecks() : FunctionPass(&ID) {}
+
+    virtual bool doInitialization(Module &M) 
+    {
+      numChecksDeleted = 0;
+    }
+
     virtual bool runOnFunction(Function &F)
     {
       set<Instruction*> insToDel;
@@ -67,6 +78,7 @@ namespace
       set<Instruction*>::iterator it;
       for (it = insToDel.begin(); it != insToDel.end(); ++it) {
         (*it)->removeFromParent();
+        numChecksDeleted++;
       }
       //Possibly modified function so return true
       return true;
