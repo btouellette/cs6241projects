@@ -12,7 +12,8 @@ After the standard optimizations, the size of the x86-64 executables are:
 
 Adding these 2429 checks adds 14503 bytes to the size of the executable, or 5.97
 bytes per bounds check on average, including the short stub function that
-handles program termination on out-of-bounds dereference.
+handles program termination on out-of-bounds dereference. This is a code size
+increase of 6.0%.
 
 
 In the encoding of a typical musical sample:
