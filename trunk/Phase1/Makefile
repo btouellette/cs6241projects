@@ -17,9 +17,10 @@ $(passeslib): $(sources)
 
 testcases.bc : libCheck-debug.bc testcases.c
 	llvm-gcc -o tmp0.bc --emit-llvm -c testcases.c
-	opt -f -load ./phase1.so -InsertChecks -o tmp1.bc tmp0.bc
+	opt -f -load ./phase1.so -stats -OptimizeChecks -InsertChecks -o tmp1.bc \
+		tmp0.bc
 	llvm-ld -o testcases tmp1.bc libCheck-debug.bc
-	rm tmp0.bc tmp1.bc
+	rm tmp1.bc
 
 libCheck.bc : libCheck.c
 	llvm-gcc --emit-llvm -c libCheck.c -o libCheck.bc
