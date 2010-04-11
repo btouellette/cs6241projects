@@ -45,32 +45,17 @@ namespace
       set<Instruction*> insToDel;
       // Iterate over all instructions in the function 
       for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
-        // Eliminate checks we can statically determine
         // Check to see if this instruction is an upper bounds check
         if (!I->getName().str().compare(0, 12, "_arrayref ub")) {
-          // Verify that the operand of the current instruction is a constant
-          Value *op = I->getOperand(0);
-          if (!isa<Instruction>(*op)) {
-            // Pull out the upper bound LLVM representation
-            ConstantInt *consUB = dynamic_cast<ConstantInt*>(op);
-            // Get the sign extended value (for zero extended use ZExt)
-            int64_t ub = consUB->getSExtValue();
-            
-            // Check the following index to see if it is a constant
-            op = (++I)->getOperand(0);
-            if (!isa<Instruction>(*op)) {
-              ConstantInt *consIDX = dynamic_cast<ConstantInt*>(op);
-              int64_t idx = consIDX->getSExtValue();
-              
-              // Statically check index fits in upper bound
-              if (idx <= ub) {
-                // It fits so flag instructions for deletion
-                insToDel.insert(&(*(--I)));
-                errs() << "Removed" << *I << "\n";
-                insToDel.insert(&(*(++I)));
-                errs() << "Removed" << *I << "\n";
-              }
-            }
+          // Eliminate checks we can statically determine
+          Instruction *Iub = &(*I);
+          Instruction *Iidx = &(*(++I));
+          if(staticallyDetermineCheck(Iub, Iidx)) {
+            // It fits so flag instructions for deletion
+            insToDel.insert(&(*(--I)));
+            errs() << "Removed" << *I << "\n";
+            insToDel.insert(&(*(++I)));
+            errs() << "Removed" << *I << "\n";
           }
         }
       }
@@ -83,6 +68,34 @@ namespace
       //Possibly modified function so return true
       return true;
     }
+
+    bool staticallyDetermineCheck(Instruction *Iub, Instruction *Iidx)
+    {
+      //errs() << "Checking" << *Iub << "\n";
+      //errs() << "Checking" << *Iidx << "\n";
+      // Verify that the operand of the current instruction is a constant
+      Value *op = Iub->getOperand(0);
+      if (!isa<Instruction>(*op)) {
+        // Pull out the upper bound LLVM representation
+        ConstantInt *consUB = dynamic_cast<ConstantInt*>(op);
+        // Get the sign extended value (for zero extended use ZExt)
+        int64_t ub = consUB->getSExtValue();
+        
+        // Check the following index to see if it is a constant
+        op = Iidx->getOperand(0);
+        if (!isa<Instruction>(*op)) {
+          ConstantInt *consIDX = dynamic_cast<ConstantInt*>(op);
+          uint64_t idx = consIDX->getSExtValue();
+          
+          // Statically check index fits in upper bound
+          if (idx <= ub) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+    
       
     //Add required analyses here
     void getAnalysisUsage(AnalysisUsage &AU) const
