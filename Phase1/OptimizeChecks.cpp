@@ -12,6 +12,7 @@
 #define __STDC_CONSTANT_MACROS
 #include <stdint.h>
 #include <set>
+#include <map>
 
 #include "llvm/Pass.h"
 #include "llvm/Function.h"
@@ -44,18 +45,24 @@ namespace
     {
       set<Instruction*> insToDel;
       // Iterate over all instructions in the function 
-      for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
-        // Check to see if this instruction is an upper bounds check
-        if (!I->getName().str().compare(0, 12, "_arrayref ub")) {
-          // Eliminate checks we can statically determine
-          Instruction *Iub = &(*I);
-          Instruction *Iidx = &(*(++I));
-          if(staticallyDetermineCheck(Iub, Iidx)) {
-            // It fits so flag instructions for deletion
-            insToDel.insert(&(*(--I)));
-            errs() << "Removed" << *I << "\n";
-            insToDel.insert(&(*(++I)));
-            errs() << "Removed" << *I << "\n";
+      for(Function::iterator BB = F.begin(), BB_E = F.end(); BB != BB_E; ++BB) {
+        // Check for local redundant checks
+        set<Instruction*> newInsToDel = eliminateRedundantLocalChecks(&(*BB));
+        // Add any redundant checks to the set to be deleted later
+        insToDel.insert(newInsToDel.begin(), newInsToDel.end());
+        for(BasicBlock::iterator I = BB->begin(), E = BB->end(); I != E; ++I) {
+          // Check to see if this instruction is an upper bounds check
+          if (!I->getName().str().compare(0, 12, "_arrayref ub")) {
+            // Eliminate checks we can statically determine
+            Instruction *Iub = &(*I);
+            Instruction *Iidx = &(*(++I));
+            if(staticallyDetermineCheck(Iub, Iidx)) {
+              // It fits so flag instructions for deletion
+              insToDel.insert(&(*(--I)));
+              errs() << "Removed" << *I << "\n";
+              insToDel.insert(&(*(++I)));
+              errs() << "Removed" << *I << "\n";
+            }
           }
         }
       }
@@ -96,6 +103,20 @@ namespace
       return false;
     }
     
+    set<Instruction*> eliminateRedundantLocalChecks(BasicBlock *BB)
+    {
+      set<Instruction*> insToDel;
+      map<Value*, Value*> checkedIns;
+      map<Value*, Value*>::iterator it;
+      for(BasicBlock::iterator I = BB->begin(), E = BB->end(); I != E; ++I) {
+          if (!I->getName().str().compare(0, 12, "_arrayref ub")) {
+            Value *ub = I->getOperand(0);
+            Value *idx = (++I)->getOperand(0);
+            checkedIns.insert(pair<Value*, Value*>(ub, idx));
+          }
+      }
+      return insToDel;
+    }
       
     //Add required analyses here
     void getAnalysisUsage(AnalysisUsage &AU) const
