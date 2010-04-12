@@ -105,74 +105,102 @@ namespace
     
     set<Instruction*> eliminateRedundantLocalChecks(BasicBlock *BB)
     {
+      // Set of instructions to delete which is returned to the callee
       set<Instruction*> insToDel;
+      // All instructions we've checked so far (this will be searched for
+      // duplicates)
       map<Value*, Value*> checkedIns;
       map<Value*, Value*>::iterator it;
+      // Iterate over every instruction in this BasicBlock
       for(BasicBlock::iterator I = BB->begin(), E = BB->end(); I != E; ++I) {
-          if (!I->getName().str().compare(0, 12, "_arrayref ub")) {
-            Value *ub = I->getOperand(0);
-            Value *idx = (++I)->getOperand(0);
-            bool dupe = false;
-            bool dupeUB = false;
-            bool dupeIDX = false;
-            for (it=checkedIns.begin(); it != checkedIns.end(); it++) {
-              dupeUB = dupeIDX = false;
-              Value *ub2 = (*it).first;
-              Value *idx2 = (*it).second;
-              if (isa<Instruction>(*ub) && isa<Instruction>(*ub2)) {
-                if (ub == ub2) {
-                  dupeUB = true;
-                }
-              }
-              else if (!isa<Instruction>(*ub) && !isa<Instruction>(*ub2)) {
-                // Pull out the upper bound LLVM representation
-                ConstantInt *consUB = dynamic_cast<ConstantInt*>(ub);
-                // Get the sign extended value (for zero extended use ZExt)
-                uint64_t ub = consUB->getSExtValue();
-                
-                // Pull out the upper bound LLVM representation
-                ConstantInt *consUB2 = dynamic_cast<ConstantInt*>(ub2);
-                // Get the sign extended value (for zero extended use ZExt)
-                uint64_t ub2 = consUB2->getSExtValue();
-
-                if (ub == ub2) {
-                  dupeUB = true;
-                }
-              }
-              if (isa<Instruction>(*idx) && isa<Instruction>(*idx2)) {
-                if (idx == idx2) {
-                  dupeIDX = true;
-                }
-              }
-              else if (!isa<Instruction>(*idx) && !isa<Instruction>(*idx2)) {
-                // Pull out the upper bound LLVM representation
-                ConstantInt *consIDX = dynamic_cast<ConstantInt*>(idx);
-                // Get the sign extended value (for zero extended use ZExt)
-                uint64_t idx = consIDX->getSExtValue();
-                
-                // Pull out the upper bound LLVM representation
-                ConstantInt *consIDX2 = dynamic_cast<ConstantInt*>(idx2);
-                // Get the sign extended value (for zero extended use ZExt)
-                uint64_t idx2 = consIDX2->getSExtValue();
-
-                if (idx == idx2) {
-                  dupeIDX = true;
-                }
-              }
-              if (dupeUB && dupeIDX) {
-                dupe = true;
+        // Only start checking when we find an upper bounds check
+        if (!I->getName().str().compare(0, 12, "_arrayref ub")) {
+          // Go ahead and pull out the references in the upper bounds and index
+          // checks
+          Value *ub = I->getOperand(0);
+          Value *idx = (++I)->getOperand(0);
+          // Booleans used to see if both the upper bounds and the index is
+          // identical to anything already in our checked set
+          bool dupe = false;
+          bool dupeUB = false;
+          bool dupeIDX = false;
+          // Iterate over all the instructions we've previously added to the
+          // checked set
+          for (it=checkedIns.begin(); it != checkedIns.end(); it++) {
+            dupeUB = dupeIDX = false;
+            // Retrieves the stored upper bounds and index values (either an
+            // Instruction or a ConstantInt
+            Value *ub2 = (*it).first;
+            Value *idx2 = (*it).second;
+            // If both references are Instructions just check the pointer to see
+            // if they are the same. Since the IR is SSA this check is
+            // sufficient.
+            if (isa<Instruction>(*ub) && isa<Instruction>(*ub2)) {
+              if (ub == ub2) {
+                dupeUB = true;
               }
             }
-            if (!dupe) {
-              checkedIns.insert(pair<Value*, Value*>(ub, idx));
+            // If they are both ConstantInts then we need to pull out the value
+            // and check them against each other
+            else if (!isa<Instruction>(*ub) && !isa<Instruction>(*ub2)) {
+              // Pull out the upper bound LLVM representation
+              ConstantInt *consUB = dynamic_cast<ConstantInt*>(ub);
+              // Get the sign extended value (for zero extended use ZExt)
+              uint64_t ub = consUB->getSExtValue();
+              
+              // Pull out the upper bound LLVM representation
+              ConstantInt *consUB2 = dynamic_cast<ConstantInt*>(ub2);
+              // Get the sign extended value (for zero extended use ZExt)
+              uint64_t ub2 = consUB2->getSExtValue();
+
+              if (ub == ub2) {
+                dupeUB = true;
+              }
             }
-            else {
-              insToDel.insert(&(*(--I)));
-              errs() << "Removed" << *I << "\n";
-              insToDel.insert(&(*(++I)));
-              errs() << "Removed" << *I << "\n";
+            // If both references are Instructions just check the pointer to see
+            // if they are the same. Since the IR is SSA this check is
+            // sufficient.
+            if (isa<Instruction>(*idx) && isa<Instruction>(*idx2)) {
+              if (idx == idx2) {
+                dupeIDX = true;
+              }
+            }
+            // If they are both ConstantInts then we need to pull out the value
+            // and check them against each other
+            else if (!isa<Instruction>(*idx) && !isa<Instruction>(*idx2)) {
+              // Pull out the upper bound LLVM representation
+              ConstantInt *consIDX = dynamic_cast<ConstantInt*>(idx);
+              // Get the sign extended value (for zero extended use ZExt)
+              uint64_t idx = consIDX->getSExtValue();
+              
+              // Pull out the upper bound LLVM representation
+              ConstantInt *consIDX2 = dynamic_cast<ConstantInt*>(idx2);
+              // Get the sign extended value (for zero extended use ZExt)
+              uint64_t idx2 = consIDX2->getSExtValue();
+
+              if (idx == idx2) {
+                dupeIDX = true;
+              }
+            }
+            // If the upper bounds and the index are identical to the
+            // Instruction we are looking at then it is a duplicate check.
+            if (dupeUB && dupeIDX) {
+              dupe = true;
             }
           }
+          // If it isn't a dupe add it to the set of checked Instructions
+          if (!dupe) {
+            checkedIns.insert(pair<Value*, Value*>(ub, idx));
+          }
+          // If it is a dupe add both checks to the list of Instructions to
+          // delete
+          else {
+            insToDel.insert(&(*(--I)));
+            errs() << "Removed" << *I << "\n";
+            insToDel.insert(&(*(++I)));
+            errs() << "Removed" << *I << "\n";
+          }
+        }
       }
       return insToDel;
     }
