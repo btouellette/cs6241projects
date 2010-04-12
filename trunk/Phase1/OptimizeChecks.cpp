@@ -69,7 +69,7 @@ namespace
       
       set<Instruction*>::iterator it;
       for (it = insToDel.begin(); it != insToDel.end(); ++it) {
-        (*it)->removeFromParent();
+        (*it)->eraseFromParent();
         numChecksDeleted++;
       }
       //Possibly modified function so return true
@@ -86,7 +86,7 @@ namespace
         // Pull out the upper bound LLVM representation
         ConstantInt *consUB = dynamic_cast<ConstantInt*>(op);
         // Get the sign extended value (for zero extended use ZExt)
-        int64_t ub = consUB->getSExtValue();
+        uint64_t ub = consUB->getSExtValue();
         
         // Check the following index to see if it is a constant
         op = Iidx->getOperand(0);
@@ -112,7 +112,66 @@ namespace
           if (!I->getName().str().compare(0, 12, "_arrayref ub")) {
             Value *ub = I->getOperand(0);
             Value *idx = (++I)->getOperand(0);
-            checkedIns.insert(pair<Value*, Value*>(ub, idx));
+            bool dupe = false;
+            bool dupeUB = false;
+            bool dupeIDX = false;
+            for (it=checkedIns.begin(); it != checkedIns.end(); it++) {
+              dupeUB = dupeIDX = false;
+              Value *ub2 = (*it).first;
+              Value *idx2 = (*it).second;
+              if (isa<Instruction>(*ub) && isa<Instruction>(*ub2)) {
+                if (ub == ub2) {
+                  dupeUB = true;
+                }
+              }
+              else if (!isa<Instruction>(*ub) && !isa<Instruction>(*ub2)) {
+                // Pull out the upper bound LLVM representation
+                ConstantInt *consUB = dynamic_cast<ConstantInt*>(ub);
+                // Get the sign extended value (for zero extended use ZExt)
+                uint64_t ub = consUB->getSExtValue();
+                
+                // Pull out the upper bound LLVM representation
+                ConstantInt *consUB2 = dynamic_cast<ConstantInt*>(ub2);
+                // Get the sign extended value (for zero extended use ZExt)
+                uint64_t ub2 = consUB2->getSExtValue();
+
+                if (ub == ub2) {
+                  dupeUB = true;
+                }
+              }
+              if (isa<Instruction>(*idx) && isa<Instruction>(*idx2)) {
+                if (idx == idx2) {
+                  dupeIDX = true;
+                }
+              }
+              else if (!isa<Instruction>(*idx) && !isa<Instruction>(*idx2)) {
+                // Pull out the upper bound LLVM representation
+                ConstantInt *consIDX = dynamic_cast<ConstantInt*>(idx);
+                // Get the sign extended value (for zero extended use ZExt)
+                uint64_t idx = consIDX->getSExtValue();
+                
+                // Pull out the upper bound LLVM representation
+                ConstantInt *consIDX2 = dynamic_cast<ConstantInt*>(idx2);
+                // Get the sign extended value (for zero extended use ZExt)
+                uint64_t idx2 = consIDX2->getSExtValue();
+
+                if (idx == idx2) {
+                  dupeIDX = true;
+                }
+              }
+              if (dupeUB && dupeIDX) {
+                dupe = true;
+              }
+            }
+            if (!dupe) {
+              checkedIns.insert(pair<Value*, Value*>(ub, idx));
+            }
+            else {
+              insToDel.insert(&(*(--I)));
+              errs() << "Removed" << *I << "\n";
+              insToDel.insert(&(*(++I)));
+              errs() << "Removed" << *I << "\n";
+            }
           }
       }
       return insToDel;

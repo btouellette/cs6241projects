@@ -24,6 +24,7 @@ int main(int argc, char** argv) {
    int n = 4;
    int z[k][m][n];
    z[3][3][3]=303;
+   z[3][3][3]=404;
 
    // An illegal read access. This should halt program execution.
    y[0][0] = y[0][20];
