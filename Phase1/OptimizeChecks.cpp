@@ -40,7 +40,120 @@ namespace
     {
       numChecksDeleted = 0;
     }
+	//Monotonic type
+	enum monotonic {unchanged, increment, decrement, multiply, divg1, divl1, changed };
+	//divg1 means div > 1, divl1 means div < 1
 
+	//TODO: Implement affect
+	//Analyzes a particular operand in a basic block to check its monotonic properties
+	//Implementation: Retrieve each occurence of the operand idx in the basic block and 
+	//check if there is a constant increase/decrease/multiplication
+	monotonic affect(BasicBlock *B, Value *idx)
+	{
+		
+	}
+	//Calculates the gen set for availability
+	&set<Instruction *> C_GEN(BasicBlock *B)
+	{
+		set<Instruction*> *cg = new set<Instruction*>();
+		set<Instruction*> &cgen = *cg;
+		for(BasicBlock::iterator I = B->begin(), E = B->end(); I != E; ++I)
+		{
+			if (!I->getName().str().compare(0, 12, "_arrayref ub") || !I->getName().str().compare(0, 12, "_arrayref lb")) 
+			{
+			cgen.insert(&(*(--I)));
+			cgen.insert(&(*(++I)));
+			}
+		}
+	return cgen;
+	}
+
+	//Calculates the forward set for a particular basic block
+	//Input: C_IN, set of checks available on entry to basic block.
+	//Output: set of forward propogation of checks
+	//Important Note - this does not cover f(v) i.e. function analysis. This means that it might miss some cases.
+    &set<Instruction *> forward(&set<Instruction *> C_IN,BasicBlock *B)
+	{
+		set<Instruction*> *fc = new set<Instruction*>();
+		set<Instruction*> &fwdChecks = *fc;
+		for(set<Instruction *>::iterator I = C_IN->begin(), E = C_IN->end(); I != E; ++I)
+		{
+			
+			//get lowerbound and the index from valid checks
+			if (!I->getName().str().compare(0, 12, "_arrayref lb")) 
+			{          
+          		Value *lbv = I->getOperand(0);
+          		Value *idx = (++I)->getOperand(0);
+			if (!isa<Instruction>(*lbv)) 
+			{
+             		 ConstantInt *consLB = dynamic_cast<ConstantInt*>(lbv);
+             		 uint64_t lb = consLB->getSExtValue();
+			if(lb<=idx)
+			{
+			monotonic result = affect(B, idx);
+			switch(result)
+			{
+			case unchanged:
+			case increment:
+			case multiply:
+			case divl1:
+			fwdChecks.insert(&(*(--I)));
+			fwdChecks.insert(&(*(++I)));
+			}
+			}
+			}
+			}
+			//get upperbound and the index from valid checks
+			if (!I->getName().str().compare(0, 12, "_arrayref ub")) 
+			{          
+          		Value *ubv = I->getOperand(0);
+          		Value *idx = (++I)->getOperand(0);
+			if (!isa<Instruction>(*ubv)) 
+			{
+             		 ConstantInt *consLB = dynamic_cast<ConstantInt*>(ubv);
+             		 uint64_t ub = consLB->getSExtValue();
+			if(ub>=idx)
+			{
+			monotonic result = affect(B, idx);
+			switch(result)
+			{
+			case unchanged:
+			case decrement:
+			case divg1:
+			fwdChecks.insert(&(*(--I)));
+			fwdChecks.insert(&(*(++I)));
+			}
+			}
+			}
+			}
+		}
+	return fwdChecks;
+
+	}
+	
+	//Calculates the out set for availability
+	&set<Instruction *> C_OUT(&set<Instruction *> C_IN, BasicBlock *B)
+	{
+		set<Instruction*> *co = new set<Instruction*>();
+		set<Instruction*> &cout = *co;
+		set<Instruction*> &fwdChecks = forward(C_IN, B);
+		set<Instruction*> &cgen = C_GEN(B);
+		for(set<Instruction *>::iterator I = fwdChecks->begin(), E = fwdChecks->end(); I != E; ++I)
+		cout.insert(&(*I));
+		for(set<Instruction *>::iterator I = cgen->begin(), E = cgen->end(); I != E; ++I)
+		cout.insert(&(*I));		
+		return cout;
+	}
+	//Implements C_IN
+	//Returns an empty set for the first Basic Block
+	//TODO: Implement c_in
+	&set<Instruction *> C_IN(BasicBlock *B)
+	{
+		set<Instruction*> *ci = new set<Instruction*>();
+		set<Instruction*> &cin = *ci;
+		return cin;
+	}
+	
     virtual bool runOnFunction(Function &F)
     {
       set<Instruction*> insToDel;
@@ -103,6 +216,7 @@ namespace
       return false;
     }
     
+	//TODO: Fix: Returning a local object instead of a reference to a "new" object
     set<Instruction*> eliminateRedundantLocalChecks(BasicBlock *BB)
     {
       // Set of instructions to delete which is returned to the callee
