@@ -7,12 +7,12 @@ all : lame-checked lame-unchecked
 
 % : %.bc
 	llc -f -o tmp.s $<
-	gcc -lm -o $@ tmp.s
+	g++ -lm -o $@ tmp.s
 	rm tmp.s
 
 lame-checked.bc : $(OBJS) ../../libCheck.bc ../../phase1.so
 	./add_checks_to_objs.sh $(OBJS)
-	llvm-ld -lm -o tmp *.checked ../../libCheck.bc
+	llvm-ld -lm -o tmp *.checked ../../libCheck-debug.bc
 	opt -f -o lame-checked.bc -std-compile-opts tmp.bc
 	rm tmp tmp.bc
 
@@ -22,7 +22,7 @@ lame-unchecked.bc : $(OBJS)
 	rm tmp tmp.bc
 
 %.bc : %.c
-	llvm-gcc -O0 --emit-llvm $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
+	llvm-gcc -g -O0 --emit-llvm $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
 
 clean:
 	rm -f $(OBJS) *.s *.bc *.checked lame-unchecked lame-checked

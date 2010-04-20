@@ -22,11 +22,11 @@ testcases.bc : libCheck-debug.bc testcases.c
 	llvm-ld -o testcases tmp1.bc libCheck-debug.bc
 	rm tmp1.bc
 
-libCheck.bc : libCheck.c
-	llvm-gcc --emit-llvm -c libCheck.c -o libCheck.bc
+libCheck.bc : libCheck.cpp
+	llvm-g++ --emit-llvm -c libCheck.cpp -o libCheck.bc
 
-libCheck-debug.bc : libCheck.c
-	llvm-gcc --emit-llvm -DDEBUG -c libCheck.c -o libCheck-debug.bc
+libCheck-debug.bc : libCheck.cpp
+	llvm-g++ --emit-llvm -DDEBUG -c libCheck.cpp -o libCheck-debug.bc
 
 clean:
 	rm -f $(passeslib) testcases *.bc *.s *~ \#*
