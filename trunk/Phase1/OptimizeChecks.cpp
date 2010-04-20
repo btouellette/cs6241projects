@@ -146,6 +146,23 @@ namespace
 
       set<Instruction*> insToDel;
       // If equivalent check is present in IN for BB we can delete this check 
+      // Iterate over all BasicBlocks in the function 
+      for(Function::iterator FI = F->begin(), FI_E = F->end(); FI != FI_E; ++FI) {
+        BasicBlock *BB = &(*FI);
+        for(BasicBlock::iterator I = FI->begin(), E = FI->end(); I != E; ++I) {
+          // Check to see if this instruction is an upper bounds check
+          if(!I->getName().str().compare(0, 12, "_arrayref ub")) {
+            Instruction *Iub = &(*I);
+            Instruction *Iidx = &(*(++I));
+            if(IN[BB].count(make_pair(Iub, Iidx)) != 0) {
+              insToDel.insert(Iub);
+              insToDel.insert(Iidx);
+              errs() << "GLOBAL Removed" << *Iub << "\n";
+              errs() << "GLOBAL Removed" << *Iidx << "\n";
+            }
+          }
+        }
+      }
       return insToDel;
     }
 
