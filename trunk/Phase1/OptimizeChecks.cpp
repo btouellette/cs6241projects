@@ -20,11 +20,14 @@
 #include "llvm/Module.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/InstIterator.h"
+#include "llvm/Support/CFG.h"
 
 #include "llvm/ADT/Statistic.h"
 
 using namespace llvm;
 using namespace std;
+
+typedef pair<Instruction*,Instruction*> inspair;
 
 namespace
 {
@@ -43,9 +46,20 @@ namespace
 
     virtual bool runOnFunction(Function &F)
     {
-      set<Instruction*> insToDel;
-      // Iterate over all instructions in the function 
+      map< BasicBlock*,set<inspair> > IN;
+      map< BasicBlock*,set<inspair> > OUT;
+      map< BasicBlock*,set<inspair> > KILL;
+      map< BasicBlock*,set<inspair> > GEN;
+
+      set<Instruction*> insToDel; 
+
+      // Iterate over all BasicBlocks in the function 
       for(Function::iterator BB = F.begin(), BB_E = F.end(); BB != BB_E; ++BB) {
+        // Initialize empty sets for this BB
+        IN.insert(make_pair(&(*BB), set<inspair>()));
+        OUT.insert(make_pair(&(*BB), set<inspair>()));
+        KILL.insert(make_pair(&(*BB), set<inspair>()));
+        GEN.insert(make_pair(&(*BB), set<inspair>()));
         // Check for local redundant checks
         set<Instruction*> newInsToDel = eliminateRedundantLocalChecks(&(*BB));
         // Add any redundant checks to the set to be deleted later
@@ -53,9 +67,10 @@ namespace
         for(BasicBlock::iterator I = BB->begin(), E = BB->end(); I != E; ++I) {
           // Check to see if this instruction is an upper bounds check
           if (!I->getName().str().compare(0, 12, "_arrayref ub")) {
-            // Eliminate checks we can statically determine
             Instruction *Iub = &(*I);
             Instruction *Iidx = &(*(++I));
+
+            // Eliminate checks we can statically determine
             if(staticallyDetermineCheck(Iub, Iidx)) {
               // It fits so flag instructions for deletion
               insToDel.insert(&(*(--I)));
@@ -63,10 +78,19 @@ namespace
               insToDel.insert(&(*(++I)));
               errs() << "Removed" << *I << "\n";
             }
+            // If it isn't going to be erased add it to GEN and OUT for this BB
+            else {
+              GEN[&(*BB)].insert(make_pair(Iub, Iidx));
+              OUT[&(*BB)].insert(make_pair(Iub, Iidx));
+            }
           }
         }
       }
       
+      set<Instruction*> newInsToDel = globalElimination(&F,IN,OUT,GEN,KILL);
+      // Add any redundant checks to the set to be deleted later
+      insToDel.insert(newInsToDel.begin(), newInsToDel.end());
+
       set<Instruction*>::iterator it;
       for (it = insToDel.begin(); it != insToDel.end(); ++it) {
         (*it)->eraseFromParent();
@@ -74,6 +98,46 @@ namespace
       }
       //Possibly modified function so return true
       return true;
+    }
+
+    set<Instruction*> globalElimination(Function *F,
+                                        map< BasicBlock*,set<inspair> > IN,
+                                        map< BasicBlock*,set<inspair> > OUT,
+                                        map< BasicBlock*,set<inspair> > GEN,
+                                        map< BasicBlock*,set<inspair> > KILL)
+    {
+      bool change = true;
+      while(change) {
+        change = false;
+        // Iterate over all BasicBlocks in the function 
+        for(Function::iterator FI = F->begin(), E_F = F->end(); FI != E_F; ++FI) {
+          BasicBlock* BB = &(*FI);
+          set<inspair> intersect;
+          for(pred_iterator PI = pred_begin(BB), E = pred_end(BB); PI != E; ++PI) {
+            BasicBlock* pred = *PI; 
+            if(PI == pred_begin(BB)) {
+              intersect.insert(OUT[pred].begin(), OUT[pred].end());
+            }
+            else {
+              set<inspair> fail;
+              set<inspair>::iterator it;
+              for(it = intersect.begin(); it != intersect.end(); ++it) {
+                if(OUT[pred].count(*it) == 0) {
+                  fail.insert(*it);
+                }
+              }
+              for(it = fail.begin(); it != fail.end(); ++it) {
+                intersect.erase(*it);
+              }
+            }
+          }
+          IN[BB] = intersect;
+        }
+      }
+
+      set<Instruction*> insToDel;
+      // If equivalent check is present in IN for BB we can delete this check 
+      return insToDel;
     }
 
     bool staticallyDetermineCheck(Instruction *Iub, Instruction *Iidx)
@@ -190,7 +254,7 @@ namespace
           }
           // If it isn't a dupe add it to the set of checked Instructions
           if (!dupe) {
-            checkedIns.insert(pair<Value*, Value*>(ub, idx));
+            checkedIns.insert(make_pair(ub, idx));
           }
           // If it is a dupe add both checks to the list of Instructions to
           // delete
