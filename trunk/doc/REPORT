@@ -1,0 +1,77 @@
+Project 1
+---------
+
+Chad D. Kersey
+Brian Ouellette
+Gaurav Gupta
+
+1 - Bounds Check Implementation
+-------------------------------
+
+- One-sided, cast to unsigned ints; works because C and C++ only have arrays 
+  with indices beginning at 0.
+- Uses separate functions written in C++ to implement the checks; relies on the
+  LLVM interprocecdural inliner to make these checks fast.
+
+1.1 - Modifications to GCC
+--------------------------
+
+- Array bounds are present with GCC's internal tree intermediate form, GIMPLE.
+- The heart of llvm-gcc is a GIMPLE-to-LLVM translator.
+- This translator was augmented by exposing array bounds whenever they appear in
+  the GIMPLE to LLVM through use of dummy instructions.
+
+1.2 - InsertChecks Pass
+-----------------------
+
+- In the LLVM pass, calls to into libCheck are added for every array.
+- To optimize these checks, the dummy instructions indicating their presence 
+  must be moved.
+
+1.3 - Impact
+------------
+
+- 6.0% code size increase and 6.1% execution time increase with no optimization.
+- Average of 5.97 bytes per bounds check.
+
+2 - Bounds Check Pruning
+------------------------
+
+- Eliminating checks whose arguments are constants.
+- Eliminating redundant local checks within a basic block. (Gupta p.138)
+
+3 - Further Bounds Check Pruning
+--------------------------------
+
+3.1 - Profiling Infrastructure in libCheck.cpp
+----------------------------------------------
+
+- Tracks address and 
+
+3.2 - The Most Frequent Checks
+------------------------------
+
+The profiling infrastructure, in combinantion with the GNU Debugger, discovered
+that the most frequent checks occurred in the inner loop, lines 313 through 315 
+of psymodel.c in the following loop:
+
+308 for ( b = 0;b < npart_s; b++ ) {
+309   FLOAT8 norm=0;
+310   for ( k = s3ind_s[b][0]; k <= s3ind_s[b][1]; k++ ) {
+311     norm += s3_s[b][k];
+312   }
+313   for ( k = s3ind_s[b][0]; k <= s3ind_s[b][1]; k++ ) {
+314     s3_s[b][k] *= SNR_s[b] / norm;
+315   }
+316   /*printf("%i  norm=%f  norm_s=%f \n",b,1/norm,norm_l[b]);*/
+317 }
+
+This single three-line inner loop accounts for 9.94 percent of total dynamic 
+array bounds checks, and all of the frequent inner loops have similar form. 
+Because b is bounded by npart_s, which is loop invariant in the outer loop, and 
+k is  bounded by a value that is loop invariant in the inner loop, all of the 
+checks can be hoisted to their respective loop headers as shown in Gupta, pages
+145-149.
+
+3.3 - Elimination of the Most Frequent Checks
+---------------------------------------------

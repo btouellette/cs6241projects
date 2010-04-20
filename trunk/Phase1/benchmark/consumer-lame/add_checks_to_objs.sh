@@ -4,5 +4,6 @@
 # checks.
 
 for f in $@; do
-    opt -f -load ../../phase1.so -InsertChecks -o $f.checked -stats $f
+    opt -f -load ../../phase1.so -OptimizeChecks -InsertChecks \
+    -o $f.checked -stats $f
 done
