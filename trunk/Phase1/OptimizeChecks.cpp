@@ -131,7 +131,16 @@ namespace
               }
             }
           }
+          if(IN[BB] != intersect) {
+            change = true;
+          }
           IN[BB] = intersect;
+          set<inspair> newout;
+          newout.insert(IN[BB].begin(), IN[BB].end());
+          newout.insert(GEN[BB].begin(), GEN[BB].end());
+          if(OUT[BB] != newout) {
+            change = true;
+          }
         }
       }
 
