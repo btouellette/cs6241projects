@@ -194,8 +194,45 @@ namespace
               Instruction *Iidx2 = (*it).second;
               Value *ub2 = Iub2->getOperand(0);
               Value *idx2 = Iidx2->getOperand(0);
+              bool dupeUB = false;
+              bool dupeIDX = false;
+              if(!isa<Instruction>(*ub) && !isa<Instruction>(*ub2)) {
+                ConstantInt *consUB = dynamic_cast<ConstantInt*>(ub);
+                ConstantInt *consUB2 = dynamic_cast<ConstantInt*>(ub2);
+                // Get the sign extended value (for zero extended use ZExt)
+                int64_t intUB = consUB->getSExtValue();
+                int64_t intUB2 = consUB2->getSExtValue();
+                // Check that the incoming upper bound (UB2) is at least as
+                // strict as the current UB
+                if(intUB >= intUB2) {
+                  dupeUB = true;
+                }                
+              }
+              else {
+                if(ub == ub2) {
+                  dupeUB = true;
+                }
+              }
+
+              if(!isa<Instruction>(*idx) && !isa<Instruction>(*idx2)) {
+                ConstantInt *consIDX = dynamic_cast<ConstantInt*>(idx);
+                ConstantInt *consIDX2 = dynamic_cast<ConstantInt*>(idx2);
+                // Get the sign extended value (for zero extended use ZExt)
+                int64_t intIDX = consIDX->getSExtValue();
+                int64_t intIDX2 = consIDX2->getSExtValue();
+                // Check that the incoming upper bound (IDX2) is at least as
+                // strict as the current IDX
+                if(intIDX <= intIDX2 && intIDX >= 0) {
+                  dupeIDX = true;
+                }                
+              }
+              else {
+                if(idx == idx2) {
+                  dupeIDX = true;
+                }
+              }
               // If the current check is identical to one in the IN set remove it
-              if(ub == ub2 && idx == idx2) {
+              if(dupeUB && dupeIDX) {
                 insToDel.insert(Iub);
                 insToDel.insert(Iidx);
                 errs() << "GLOBAL Removed" << *Iub << "\n";
