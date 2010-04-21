@@ -74,9 +74,9 @@ namespace
             if(staticallyDetermineCheck(Iub, Iidx)) {
               // It fits so flag instructions for deletion
               insToDel.insert(&(*(--I)));
-              errs() << "Removed" << *I << "\n";
+              errs() << "STATIC Removed" << *I << "\n";
               insToDel.insert(&(*(++I)));
-              errs() << "Removed" << *I << "\n";
+              errs() << "STATIC Removed" << *I << "\n";
             }
             // If it isn't going to be erased add it to GEN and OUT for this BB
             else {
@@ -307,9 +307,9 @@ namespace
           // delete
           else {
             insToDel.insert(&(*(--I)));
-            errs() << "Removed" << *I << "\n";
+            errs() << "LOCAL  Removed" << *I << "\n";
             insToDel.insert(&(*(++I)));
-            errs() << "Removed" << *I << "\n";
+            errs() << "LOCAL  Removed" << *I << "\n";
           }
         }
       }
