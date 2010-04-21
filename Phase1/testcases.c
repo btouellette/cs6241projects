@@ -34,14 +34,14 @@ int main(int argc, char** argv) {
    char w[argc];
    w[argc/2 + 1] = 123;
 
+   int c = 97;
+   int test[c][c-1];
+   test[39][39] = 1;
+   if(test[39][39] == 1)
+     test[39][39] = 1; 
 
-   n=2;
-   z[3][3][n] = 1;
-   if(z[3][3][n] == 1)
-     z[3][3][n] = 1;
-
-   while(z[3][3][n] < 10)
-     z[3][3][n] = z[3][3][n] + 1;
+   while(test[35][35] < 10)
+     test[35][35] = test[35][35] + 1;
 
    return 0;
 }
