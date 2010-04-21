@@ -169,17 +169,37 @@ namespace
       // Iterate over all BasicBlocks in the function 
       for(Function::iterator FI = F->begin(), FI_E = F->end(); FI != FI_E; ++FI) {
         BasicBlock *BB = &(*FI);
+        // This will print out the IN sets for each BB in the function
+        /*errs() << "\n __NEW BB__ \n";
+        set<inspair>::iterator it;
+        for(it=IN[BB].begin(); it != IN[BB].end(); ++it) {
+          errs() << *((*it).first) << "\n";
+          errs() << *((*it).second) << "\n";
+        }*/
         for(BasicBlock::iterator I = FI->begin(), E = FI->end(); I != E; ++I) {
           // Check to see if this instruction is an upper bounds check
           if(!I->getName().str().compare(0, 12, "_arrayref ub")) {
             Instruction *Iub = &(*I);
             Instruction *Iidx = &(*(++I));
-            // If the current check is already in the IN set remove it
-            if(IN[BB].count(make_pair(Iub, Iidx)) != 0) {
-              insToDel.insert(Iub);
-              insToDel.insert(Iidx);
-              errs() << "GLOBAL Removed" << *Iub << "\n";
-              errs() << "GLOBAL Removed" << *Iidx << "\n";
+            // Pull out the actual values of the upper bound and index
+            Value *ub = Iub->getOperand(0);
+            Value *idx = Iidx->getOperand(0);
+            // Check these values against all bounds checks present in IN
+            set<inspair>::iterator it;
+            for(it=IN[BB].begin(); it != IN[BB].end(); ++it) {
+              // Grab the instructions and the actual values for this check from
+              // the IN set
+              Instruction *Iub2 = (*it).first;
+              Instruction *Iidx2 = (*it).second;
+              Value *ub2 = Iub2->getOperand(0);
+              Value *idx2 = Iidx2->getOperand(0);
+              // If the current check is identical to one in the IN set remove it
+              if(ub == ub2 && idx == idx2) {
+                insToDel.insert(Iub);
+                insToDel.insert(Iidx);
+                errs() << "GLOBAL Removed" << *Iub << "\n";
+                errs() << "GLOBAL Removed" << *Iidx << "\n";
+              }
             }
           }
         }
