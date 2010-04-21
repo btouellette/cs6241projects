@@ -106,41 +106,61 @@ namespace
                                         map< BasicBlock*,set<inspair> > GEN,
                                         map< BasicBlock*,set<inspair> > KILL)
     {
+      // Used to track whether the iterative method has stabilized
       bool change = true;
       while(change) {
         change = false;
         // Iterate over all BasicBlocks in the function 
         for(Function::iterator FI = F->begin(), E_F = F->end(); FI != E_F; ++FI) {
+          // Get the current BB
           BasicBlock* BB = &(*FI);
+          // This set will represent the intersection of all predecessors OUT
+          // sets
           set<inspair> intersect;
+          // Iterate over all predecessors of the current BB
           for(pred_iterator PI = pred_begin(BB), E = pred_end(BB); PI != E; ++PI) {
             BasicBlock* pred = *PI; 
+            // If we are on the first block just make the intersection
+            // everything in the OUT set
             if(PI == pred_begin(BB)) {
               intersect.insert(OUT[pred].begin(), OUT[pred].end());
             }
+            // Otherwise remove anything that isn't present in the OUT set of
+            // the predecessor
             else {
               set<inspair> fail;
               set<inspair>::iterator it;
+              // Go through each element currently in the intersect set
               for(it = intersect.begin(); it != intersect.end(); ++it) {
+                // If this element of the intersect set does not appear in the
+                // OUT set of the current predecessor we'll remove it from the
+                // intersect set
                 if(OUT[pred].count(*it) == 0) {
                   fail.insert(*it);
                 }
               }
+              // Go through and remove the appropriate elements from the
+              // intersect set
               for(it = fail.begin(); it != fail.end(); ++it) {
-                intersect.erase(*it);
+                int test = intersect.erase(*it);
               }
             }
           }
+          // Detected change in IN set so iterate again
           if(IN[BB] != intersect) {
             change = true;
           }
           IN[BB] = intersect;
+          // The OUT set is just the union of the IN and GEN sets since the KILL
+          // set is empty due to SSA
           set<inspair> newout;
           newout.insert(IN[BB].begin(), IN[BB].end());
           newout.insert(GEN[BB].begin(), GEN[BB].end());
+          // Detected change in OUT set so iterate again
           if(OUT[BB] != newout) {
             change = true;
           }
+          OUT[BB] = newout;
         }
       }
 
@@ -154,6 +174,7 @@ namespace
           if(!I->getName().str().compare(0, 12, "_arrayref ub")) {
             Instruction *Iub = &(*I);
             Instruction *Iidx = &(*(++I));
+            // If the current check is already in the IN set remove it
             if(IN[BB].count(make_pair(Iub, Iidx)) != 0) {
               insToDel.insert(Iub);
               insToDel.insert(Iidx);
