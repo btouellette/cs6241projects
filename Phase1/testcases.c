@@ -34,5 +34,14 @@ int main(int argc, char** argv) {
    char w[argc];
    w[argc/2 + 1] = 123;
 
+
+   n=2;
+   z[3][3][n] = 1;
+   if(z[3][3][n] == 1)
+     z[3][3][n] = 1;
+
+   while(z[3][3][n] < 10)
+     z[3][3][n] = z[3][3][n] + 1;
+
    return 0;
 }
