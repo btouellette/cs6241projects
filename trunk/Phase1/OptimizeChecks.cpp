@@ -96,6 +96,7 @@ namespace
         (*it)->eraseFromParent();
         numChecksDeleted++;
       }
+      numChecksDeleted = numChecksDeleted/2;
       //Possibly modified function so return true
       return true;
     }
@@ -277,14 +278,16 @@ namespace
               // Pull out the upper bound LLVM representation
               ConstantInt *consUB = dynamic_cast<ConstantInt*>(ub);
               // Get the sign extended value (for zero extended use ZExt)
-              uint64_t ub = consUB->getSExtValue();
+              int64_t ub = consUB->getSExtValue();
               
               // Pull out the upper bound LLVM representation
               ConstantInt *consUB2 = dynamic_cast<ConstantInt*>(ub2);
               // Get the sign extended value (for zero extended use ZExt)
-              uint64_t ub2 = consUB2->getSExtValue();
+              int64_t ub2 = consUB2->getSExtValue();
 
-              if (ub == ub2) {
+              // Duplicate if the upperbound of the examined instruction is at
+              // least as stringent as the upperbound of an earlier instruction
+              if (ub >= ub2) {
                 dupeUB = true;
               }
             }
@@ -302,14 +305,14 @@ namespace
               // Pull out the upper bound LLVM representation
               ConstantInt *consIDX = dynamic_cast<ConstantInt*>(idx);
               // Get the sign extended value (for zero extended use ZExt)
-              uint64_t idx = consIDX->getSExtValue();
+              int64_t idx = consIDX->getSExtValue();
               
               // Pull out the upper bound LLVM representation
               ConstantInt *consIDX2 = dynamic_cast<ConstantInt*>(idx2);
               // Get the sign extended value (for zero extended use ZExt)
-              uint64_t idx2 = consIDX2->getSExtValue();
+              int64_t idx2 = consIDX2->getSExtValue();
 
-              if (idx == idx2) {
+              if (idx <= idx2 && idx >= 0) {
                 dupeIDX = true;
               }
             }
