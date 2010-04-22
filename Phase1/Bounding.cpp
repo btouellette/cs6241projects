@@ -43,7 +43,6 @@ namespace
     BoundChecks() : LoopPass(&ID) {}
 
     virtual void getAnalysisUsage(AnalysisUsage &AU) {
-      AU.addRequired<>();
     }
 
     virtual bool runOnLoop(Loop *L, LPPassManager &LPM) {
