@@ -3,7 +3,7 @@
 # directory structure.
 
 passeslib = phase1.so
-sources = InsertChecks.cpp OptimizeChecks.cpp
+sources = InsertChecks.cpp OptimizeChecks.cpp Bounding.cpp
 
 LD = llvm-ld
 CXX = llvm-g++
@@ -17,7 +17,7 @@ $(passeslib): $(sources)
 
 testcases.bc : libCheck-debug.bc testcases.c
 	llvm-gcc -o tmp0.bc --emit-llvm -c testcases.c
-	opt -f -load ./phase1.so -stats -OptimizeChecks -InsertChecks -o tmp1.bc \
+	opt -f -load ./phase1.so -stats -BoundChecks -OptimizeChecks -InsertChecks -o tmp1.bc \
 		tmp0.bc
 	llvm-ld -o testcases tmp1.bc libCheck-debug.bc
 	rm tmp1.bc

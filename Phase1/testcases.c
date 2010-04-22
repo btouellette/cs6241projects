@@ -43,5 +43,10 @@ int main(int argc, char** argv) {
    while(test[35][35] < 10)
      test[35][35] = test[35][35] + 1;
 
+
+   int ARR[15];
+   int ind;
+   for (ind = 0; ind < 15; ind++) ARR[ind] = ind * ind;
+
    return 0;
 }
