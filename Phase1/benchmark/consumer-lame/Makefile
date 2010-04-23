@@ -13,12 +13,12 @@ all : lame-checked lame-unchecked
 lame-checked.bc : $(OBJS) ../../libCheck.bc ../../phase1.so
 	./add_checks_to_objs.sh $(OBJS)
 	llvm-ld -lm -o tmp *.checked ../../libCheck-debug.bc
-	opt -f -o lame-checked.bc -std-compile-opts tmp.bc
+	opt -f -o lame-checked.bc -std-compile-opts -std-link-opts tmp.bc
 	rm tmp tmp.bc
 
 lame-unchecked.bc : $(OBJS)
 	llvm-ld -lm -o tmp $(OBJS)
-	opt -f -o lame-unchecked.bc -std-compile-opts tmp.bc
+	opt -f -o lame-unchecked.bc -std-compile-opts -std-link-opts tmp.bc
 	rm tmp tmp.bc
 
 %.bc : %.c
