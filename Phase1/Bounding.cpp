@@ -81,15 +81,13 @@ namespace
           if (!(P->hasNUsesOrMore(2))) continue;
           
           StoreInst *lbStore = NULL, *incStore = NULL;
-          Value *loop_lb = NULL, *loop_ub = NULL;
+          Value *loop_lb = NULL, *loop_ub = NULL, *ub_ptr = NULL;
           ICmpInst *cmpInst = NULL;
-          LoadInst *incLoad = NULL, *cmpLoad = NULL;
+          LoadInst *incLoad = NULL, *cmpLoad = NULL, *ub_load = NULL;
           ConstantInt *incVal = NULL;
           BranchInst *loopB = NULL;
           BinaryOperator *incInst = NULL;
           bool ubInclusive = false;
-
-          errs() << "1\n";
 
           // Try to find the store and value for the loop lower bound.
           for (b_it I = (L->getLoopPreheader())->begin(); 
@@ -102,9 +100,6 @@ namespace
               }
             }
           }
-
-          errs() << "2\n";
-
 
           if (loop_lb == NULL) continue;
 
@@ -192,6 +187,13 @@ namespace
                   abort = true;
                 }
                 loop_ub = boundOnLeft?O0:O1;
+
+                if (ub_load = dyn_cast<LoadInst>(loop_ub)) {
+                  ub_ptr = ub_load->getPointerOperand();
+                } else if (dyn_cast<ConstantInt>(loop_ub)) {
+                } else {
+                  abort = true;
+                }
               }
             }
           }
@@ -222,24 +224,25 @@ namespace
 
           if (incLoad == NULL || incVal == NULL) continue;
           
-          errs() << "3\n";
-
-
           // If there's a store to the loop induction variable other than the
           // increment or initialization, this optimization cannot happen.
+
+          // If there's a store to the loop upper bound during the loop, this
+          // optimization cannot happen.
           for (l_it B = L->block_begin(); B != L->block_end(); B++) {
             for (b_it I = (*B)->begin(); I != (*B)->end(); I++) {
               StoreInst *S;
-              if ( (S = dyn_cast<StoreInst>(I)) && 
-                   S->getPointerOperand() == P && S != incStore) {
-                abort = true;
+              if (S = dyn_cast<StoreInst>(I)) {
+                if (S->getPointerOperand() == P && S != incStore) {
+                  abort = true;
+                } else if (ub_ptr && S->getPointerOperand() == ub_ptr) {
+                  abort = true;
+                }
               }
+              if (ub_ptr == &(*I)) abort = true;
             }
           }
           if (abort) continue;
-
-          errs() << "4\n";
-
 
           numChecksMoved++; modified = true;
 
@@ -250,15 +253,21 @@ namespace
           toDelete.insert(toDelete.end(), I1);
 
           // 2. Assemble the new bounds check instructions.
-          if (!ubInclusive) 
-            loop_ub = BinaryOperator::CreateNSWAdd(
-              loop_ub, ConstantInt::get(
-                loop_ub->getType(), 1, 
+          if (ub_ptr) {
+            loop_ub = new LoadInst(
+              ub_ptr, "", L->getLoopPreheader()->getTerminator()
+            );
+          }
+
+          if (!ubInclusive) {
+            ub = BinaryOperator::CreateNSWAdd(
+              ub, ConstantInt::get(
+                ub->getType(), 1, 
                 true
               ), "", L->getLoopPreheader()->getTerminator()
             );
+          }
 
-          // 3. Place the new bounds check instructions in the loop preheader.
           Instruction::CastOps UBCast, IdxCast;
 
           unsigned loopubBits = loop_ub->getType()->getPrimitiveSizeInBits();
@@ -272,6 +281,7 @@ namespace
           else if (arrayubBits < 64) UBCast = Instruction::ZExt;
           else UBCast = Instruction::Trunc;
 
+          // 3. Place the new bounds check instructions in the loop preheader.
           CastInst::Create(UBCast,
                            ub,
                            Type::getInt64Ty(
@@ -286,9 +296,6 @@ namespace
                            ),
                            "_arrayref idx",
                            L->getLoopPreheader()->getTerminator());
-
-          errs() << "UB: " << *loop_ub << "\nLB: " << *loop_lb << "\nIDX: " 
-                 << *P << '\n';
         }
       }
 
