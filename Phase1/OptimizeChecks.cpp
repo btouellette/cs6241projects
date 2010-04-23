@@ -21,6 +21,8 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/InstIterator.h"
 #include "llvm/Support/CFG.h"
+#include "llvm/Analysis/Dominators.h"
+#include "llvm/Analysis/LoopInfo.h"
 
 #include "llvm/ADT/Statistic.h"
 
@@ -46,6 +48,38 @@ namespace
 
     virtual bool runOnFunction(Function &F)
     {
+      DominatorTree *DT = &getAnalysis<DominatorTree>();
+      LoopInfo *LI = &getAnalysis<LoopInfo>();
+      // Iterates over all the top level loops in the function
+      for(LoopInfo::iterator I = LI->begin(), E = LI->end(); I != E; ++I) {
+        Loop *L = *I;
+        
+        SmallVector<BasicBlock*, 20> exits;
+        // Get the set of exiting blocks from the current loop
+        L->getExitingBlocks(exits);
+
+        set<BasicBlock*> loopDomBlocks; 
+        vector<BasicBlock*> loopBlocks = L->getBlocks();
+        
+        bool valid = true;
+        // Iterate over all the BBs in the current loop
+        for(int k = 0; k < loopBlocks.size(); k++) {
+          BasicBlock *BB = loopBlocks[k];
+          // Check whether the current BB doms all exits
+          for(int j = 0; j < exits.size(); j++) {
+            BasicBlock *BB_exit = exits[j];
+            if(!DT->dominates(BB,BB_exit)) {
+              valid = false;
+            }
+          }
+          // If the current BB doms all loop exits
+          if(valid) {
+            loopDomBlocks.insert(BB);
+          }
+          valid = true;
+        }
+      }
+
       map< BasicBlock*,set<inspair> > IN;
       map< BasicBlock*,set<inspair> > OUT;
       map< BasicBlock*,set<inspair> > KILL;
@@ -379,7 +413,8 @@ namespace
     //Add required analyses here
     void getAnalysisUsage(AnalysisUsage &AU) const
     {
-
+      AU.addRequired<LoopInfo>();
+      AU.addRequired<DominatorTree>();
     }
   };
 
