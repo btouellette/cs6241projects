@@ -1,60 +1,77 @@
-Project 1
----------
+\documentclass{article}
+\usepackage{multicol}
+\usepackage{graphicx}
+\usepackage[left=1in,top=1in,right=1in,bottom=1in,nohead]{geometry}
 
-Chad D. Kersey
-Brian Ouellette
-Gaurav Gupta
+\title{CS6241 Project Phase 1}
 
-1 - Bounds Check Implementation
--------------------------------
+\author{Gaurav Gupta, Chad D. Kersey, Brian Ouellette}
 
-- One-sided, cast to unsigned ints; works because C and C++ only have arrays 
-  with indices beginning at 0.
-- Uses separate functions written in C++ to implement the checks; relies on the
-  LLVM interprocecdural inliner to make these checks fast.
+\begin{document}
 
-1.1 - Modifications to GCC
---------------------------
+\maketitle
 
-- Array bounds are present with GCC's internal tree intermediate form, GIMPLE.
-- The heart of llvm-gcc is a GIMPLE-to-LLVM translator.
-- This translator was augmented by exposing array bounds whenever they appear in
-  the GIMPLE to LLVM through use of dummy instructions.
+\section{Bounds Check Implementation}
 
-1.2 - InsertChecks Pass
------------------------
+Bounds checking was implemented in two pieces, one inside of the GCC frontend
+marks the array accesses and exposes the bounds and index, and another inside of
+LLVM takes these annotations and inserts checks. The checks inserted are 
+one-sided unsigned comparisons. Since C and C++ arrays can have no starting
+index other than zero, casting all indices to unsigned integers and checking the
+index against the upper bound will always be sufficient.
+
+\subsection{Modifications to GCC}
+
+The heart of LLVM-GCC is a translator from GCC's IR into LLVM instructions, in
+llvm-convert.cpp. 34 lines were added to this file, the modified version of 
+which is included in the project submission under llvm-gcc. The lines in 
+question are 458-491, in the function responsible for emitting LLVM code for 
+array references. A pseudocode version of the added block is presented below:
+
+\begin{verbatim}
+  if indexed item is a global or on-stack array:
+    upper_bound_cast_instruction = llvm_cast_to_uint64(upper_bound)
+    index_cast_instruction = llvm_cast_to_uint64(index)
+    
+    insert_at_end_of_current_function(upper_bound_cast_instruction)
+    insert_at_end_of_current_function(index_cast_instruction)
+\end{verbatim}
+
+The upper bound and index are already part of GCC's internal representation, 
+GIMPLE, and are readily available as parameters to the indexing operation. The
+two casts inserted have no uses and are present only to provide the 
+InsertionChecks pass, described in the next Section, with the locations to place
+checks and the values to use.
+
+\subsection{InsertChecks Pass}
 
 - In the LLVM pass, calls to into libCheck are added for every array.
 - To optimize these checks, the dummy instructions indicating their presence 
-  must be moved.
+  must be moved before InsertChecks is run.
 
-1.3 - Impact
-------------
+\subsection{Impact}
 
 - 6.0% code size increase and 6.1% execution time increase with no optimization.
 - Average of 5.97 bytes per bounds check.
 
-2 - Bounds Check Pruning
-------------------------
+\section{Bounds Check Pruning}
 
 - Eliminating checks whose arguments are constants.
 - Eliminating redundant local checks within a basic block. (Gupta p.138)
 
-3 - Further Bounds Check Pruning
---------------------------------
+\section{Further Bounds Check Pruning}
 
-3.1 - Profiling Infrastructure in libCheck.cpp
-----------------------------------------------
+\subsection{Profiling Infrastructure in libCheck.cpp}
 
 - Tracks address and 
 
-3.2 - The Most Frequent Checks
-------------------------------
+\subsection{The Most Frequent Checks}
 
 The profiling infrastructure, in combinantion with the GNU Debugger, discovered
 that the most frequent checks occurred in the inner loop, lines 313 through 315 
 of psymodel.c in the following loop:
 
+\begin{verbatim}
 308 for ( b = 0;b < npart_s; b++ ) {
 309   FLOAT8 norm=0;
 310   for ( k = s3ind_s[b][0]; k <= s3ind_s[b][1]; k++ ) {
@@ -65,13 +82,15 @@ of psymodel.c in the following loop:
 315   }
 316   /*printf("%i  norm=%f  norm_s=%f \n",b,1/norm,norm_l[b]);*/
 317 }
+\end{verbatim}
 
 This single three-line inner loop accounts for 9.94 percent of total dynamic 
 array bounds checks, and all of the frequent inner loops have similar form. 
-Because b is bounded by npart_s, which is loop invariant in the outer loop, and 
+Because b is bounded by npart\_s, which is loop invariant in the outer loop, and
 k is  bounded by a value that is loop invariant in the inner loop, all of the 
 checks can be hoisted to their respective loop headers as shown in Gupta, pages
 145-149.
 
-3.3 - Elimination of the Most Frequent Checks
----------------------------------------------
+\subsection{Elimination of the Most Frequent Checks}
+
+\end{document}

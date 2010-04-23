@@ -11,7 +11,6 @@
 #define __STDC_LIMIT_MACROS
 #define __STDC_CONSTANT_MACROS
 #include <stdint.h>
-#include <set>
 #include <map>
 
 #include "llvm/Pass.h"
@@ -80,8 +79,11 @@ namespace
           
           StoreInst *lbStore = NULL, *incStore = NULL;
           Value *loop_lb = NULL, *loop_ub = NULL;
-          ICmpInst *cmpInst;
+          ICmpInst *cmpInst = NULL;
           LoadInst *incLoad = NULL, *cmpLoad = NULL;
+          BranchInst *loopB = NULL;
+          Value *incInst = NULL;
+          bool ubInclusive = false;
 
           // Try to find the store and value for the loop lower bound.
           for (b_it I = (L->getLoopPreheader())->begin(); 
@@ -106,17 +108,52 @@ namespace
                   (cmpLoad = dyn_cast<LoadInst>(I)) &&
                   cmpLoad->hasNUses(1) &&
                   (cmpInst = dyn_cast<ICmpInst>(*(cmpLoad->use_begin()))) &&
-                  cmpInst->getPredicate() == CmpInst::ICMP_SGT) {
-                loop_ub = cmpInst->getOperand(0);
+                  cmpInst->hasNUses(1) &&
+                  (loopB = dyn_cast<BranchInst>(*(cmpInst->use_begin()))) &&
+                  loopB->getNumSuccessors() == 2) {
+                Value *O0=cmpInst->getOperand(0), *O1=cmpInst->getOperand(1);
+                switch(cmpInst->getPredicate()) {
+                case CmpInst::ICMP_EQ:
+                case CmpInst::ICMP_NE:
+                case CmpInst::ICMP_SGT:
+                case CmpInst::ICMP_SLT:
+                case CmpInst::ICMP_ULT:
+                case CmpInst::ICMP_UGT:
+                case CmpInst::ICMP_SLE:
+                case CmpInst::ICMP_SGE:
+                case CmpInst::ICMP_ULE:
+                case CmpInst::ICMP_UGE:
+                  loop_ub = O0==cmpLoad?O1:O0;
+                  break;
+                default:
+                  loop_ub = NULL;
+                }
               }
             }
           }
           
           if (loop_ub == NULL) continue;
 
-          errs() << "UB: " << *loop_ub << '\n' << "LB: " << *loop_lb << '\n';
+          errs() << "UB: " << *loop_ub << (ubInclusive?" inclusive":"") << '\n' 
+                 << "LB: " << *loop_lb << '\n';
 
-          // Try to find the increment, for verification.
+          // Find the increment.
+          for (l_it B = L->block_begin(); B != L->block_end(); B++) {
+            for (b_it I = (*B)->begin(); I != (*B)->end(); I++) {
+              if ( (incStore = dyn_cast<StoreInst>(I)) && 
+                   incStore->getPointerOperand() == P && incStore != lbStore)
+              {
+                incInst = incStore->getOperand(0);
+                errs() << "Increment store candidate: " << *incStore << '\n';
+                errs() << "Increment candidate:" << *incInst << '\n';
+              }
+            }
+          }
+          
+          // If there's a store to the loop induction variable other than the
+          // increment or initialization, this loop is bad.
+
+         
 
         }
       }
