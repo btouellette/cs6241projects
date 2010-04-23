@@ -37,6 +37,9 @@ namespace
 
   struct BoundChecks : public LoopPass
   {
+  private:
+    map<Loop*, set<CastInst*> > ubChecks; 
+
   public:
     static char ID;
     BoundChecks() : LoopPass(&ID) {}
@@ -81,8 +84,9 @@ namespace
           Value *loop_lb = NULL, *loop_ub = NULL;
           ICmpInst *cmpInst = NULL;
           LoadInst *incLoad = NULL, *cmpLoad = NULL;
+          ConstantInt *incVal = NULL;
           BranchInst *loopB = NULL;
-          Value *incInst = NULL;
+          BinaryOperator *incInst = NULL;
           bool ubInclusive = false;
 
           // Try to find the store and value for the loop lower bound.
@@ -100,6 +104,7 @@ namespace
           if (loop_lb == NULL) continue;
 
           // Try to find the load and value for the upper bound compare.
+          bool abort = false;
           for (b_it I = (L->getHeader())->begin();
                I != (L->getHeader())->end();
                I++) {
@@ -112,49 +117,127 @@ namespace
                   (loopB = dyn_cast<BranchInst>(*(cmpInst->use_begin()))) &&
                   loopB->getNumSuccessors() == 2) {
                 Value *O0=cmpInst->getOperand(0), *O1=cmpInst->getOperand(1);
-                switch(cmpInst->getPredicate()) {
-                case CmpInst::ICMP_EQ:
-                case CmpInst::ICMP_NE:
-                case CmpInst::ICMP_SGT:
-                case CmpInst::ICMP_SLT:
-                case CmpInst::ICMP_ULT:
-                case CmpInst::ICMP_UGT:
-                case CmpInst::ICMP_SLE:
-                case CmpInst::ICMP_SGE:
-                case CmpInst::ICMP_ULE:
-                case CmpInst::ICMP_UGE:
-                  loop_ub = O0==cmpLoad?O1:O0;
-                  break;
-                default:
-                  loop_ub = NULL;
+                bool trueExits = L->contains(loopB->getSuccessor(1));
+                bool boundOnLeft = O1 == I;
+                errs() << "True " << (trueExits?"exits: ":"continues: ") 
+                       << *cmpInst << '\n';
+                if (boundOnLeft) errs() << "bound on left.\n";
+                
+                CmpInst::Predicate p = cmpInst->getPredicate();
+                if (trueExits) {
+                  switch(p) {
+                    case CmpInst::ICMP_EQ:  p = CmpInst::ICMP_NE;  break;
+                    case CmpInst::ICMP_NE:  p = CmpInst::ICMP_EQ;  break;
+                    case CmpInst::ICMP_SGT: p = CmpInst::ICMP_SLE; break;
+                    case CmpInst::ICMP_UGT: p = CmpInst::ICMP_ULE; break;
+                    case CmpInst::ICMP_SLT: p = CmpInst::ICMP_SGE; break;
+                    case CmpInst::ICMP_ULT: p = CmpInst::ICMP_UGE; break;
+                    case CmpInst::ICMP_SGE: p = CmpInst::ICMP_SLT; break;
+                    case CmpInst::ICMP_UGE: p = CmpInst::ICMP_ULT; break;
+                    case CmpInst::ICMP_SLE: p = CmpInst::ICMP_SGT; break;
+                    case CmpInst::ICMP_ULE: p = CmpInst::ICMP_UGT; break;
+                    default: abort = true;
+                  }
                 }
+
+                switch(cmpInst->getPredicate()) {
+
+                case CmpInst::ICMP_NE:
+                  ubInclusive = false;
+                  if (trueExits) abort = true;
+                  break;
+
+                case CmpInst::ICMP_SGT:
+                  ubInclusive = false;
+                  if (!boundOnLeft) abort = true;
+                  break;
+
+                case CmpInst::ICMP_SLT:
+                  ubInclusive = false;
+                  if (boundOnLeft) abort = true;
+                  break;
+
+                case CmpInst::ICMP_ULT:
+                  ubInclusive = false;
+                  if (boundOnLeft) abort = true;
+                  break;
+
+                case CmpInst::ICMP_UGT:
+                  ubInclusive = false;
+                  if (!boundOnLeft) abort = true;
+                  break;
+ 
+                case CmpInst::ICMP_SLE:
+                  ubInclusive = true;
+                  if (boundOnLeft) abort = true;
+                  break;
+
+                case CmpInst::ICMP_SGE:
+                  ubInclusive = true;
+                  if (!boundOnLeft) abort = true;
+                  break;
+
+                case CmpInst::ICMP_ULE:
+                  ubInclusive = true;
+                  if (boundOnLeft) abort = true;
+                  break;
+
+                case CmpInst::ICMP_UGE:
+                  ubInclusive = true;
+                  break;
+
+                default:
+                  abort = true;
+                }
+                loop_ub = boundOnLeft?O0:O1;
               }
             }
           }
           
-          if (loop_ub == NULL) continue;
+          if (loop_ub == NULL || abort == true) continue;
 
           errs() << "UB: " << *loop_ub << (ubInclusive?" inclusive":"") << '\n' 
                  << "LB: " << *loop_lb << '\n';
 
           // Find the increment.
-          for (l_it B = L->block_begin(); B != L->block_end(); B++) {
-            for (b_it I = (*B)->begin(); I != (*B)->end(); I++) {
-              if ( (incStore = dyn_cast<StoreInst>(I)) && 
-                   incStore->getPointerOperand() == P && incStore != lbStore)
-              {
-                incInst = incStore->getOperand(0);
+          for (l_it B = L->block_begin(); B != L->block_end() && !incVal; B++) {
+            for (b_it I = (*B)->begin(); I != (*B)->end() && !incVal; I++) {
+              if ((incStore = dyn_cast<StoreInst>(I)) && 
+                  incStore->getPointerOperand() == P && incStore != lbStore &&
+                  (incInst=dyn_cast<BinaryOperator>(incStore->getOperand(0))) &&
+                  incInst->getOpcode() == Instruction::Add) {
+                if (dyn_cast<LoadInst>(incInst->getOperand(0))) {
+                  incLoad = dyn_cast<LoadInst>(incInst->getOperand(0));
+                  incVal = dyn_cast<ConstantInt>(incInst->getOperand(1));
+                } else if (dyn_cast<LoadInst>(incInst->getOperand(1))) {
+                  incLoad = dyn_cast<LoadInst>(incInst->getOperand(1));
+                  incVal = dyn_cast<ConstantInt>(incInst->getOperand(0));
+                }
                 errs() << "Increment store candidate: " << *incStore << '\n';
                 errs() << "Increment candidate:" << *incInst << '\n';
               }
             }
           }
+
+          if (incLoad == NULL || incVal == NULL) continue;
           
           // If there's a store to the loop induction variable other than the
-          // increment or initialization, this loop is bad.
+          // increment or initialization, this optimization cannot happen.
+          for (l_it B = L->block_begin(); B != L->block_end(); B++) {
+            for (b_it I = (*B)->begin(); I != (*B)->end(); I++) {
+              StoreInst *S;
+              if ( (S = dyn_cast<StoreInst>(I)) && 
+                   S->getPointerOperand() == P &&
+                   S != incStore && S != lbStore) {
+                errs() << "Rogue store: " << *S << '\n';
+                abort = true;
+              }
+            }
+          }
+          if (abort) continue;
 
+          numChecksMoved++;
          
-
         }
       }
 
