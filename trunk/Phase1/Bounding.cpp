@@ -11,7 +11,7 @@
 #define __STDC_LIMIT_MACROS
 #define __STDC_CONSTANT_MACROS
 #include <stdint.h>
-#include <map>
+#include <list>
 
 #include "llvm/Pass.h"
 #include "llvm/Function.h"
@@ -37,9 +37,6 @@ namespace
 
   struct BoundChecks : public LoopPass
   {
-  private:
-    map<Loop*, set<CastInst*> > ubChecks; 
-
   public:
     static char ID;
     BoundChecks() : LoopPass(&ID) {}
@@ -48,6 +45,8 @@ namespace
     }
 
     virtual bool runOnLoop(Loop *L, LPPassManager &LPM) {
+      list <Instruction *>toDelete;
+
       typedef Loop::block_iterator l_it;
       typedef BasicBlock::iterator b_it;
       typedef Value::use_iterator u_it;
@@ -56,7 +55,6 @@ namespace
 
       if (L->getLoopPreheader() == NULL) return false;
 
-      errs() << "LOOP\n";
       // Iterate over basic blocks in the loop. Looking for array references
       // using induction variables, which will be held in memory, because no
       // pointer analysis can have happened yet.
@@ -64,8 +62,10 @@ namespace
         for (b_it I = (*B)->begin(); I != (*B)->end(); I++) {
           if (I->getName().str().compare(0, 12, "_arrayref ub")) continue;
           
-          Value *ub = I->getOperand(0);
-          Value *idx = (++I)->getOperand(0);
+          Instruction *I0 = &(*I), *I1 = &(*(++I));
+
+          Value *ub = I0->getOperand(0);
+          Value *idx = I1->getOperand(0);
             
           // Get the pointer to the memory location
           LoadInst *LI = dyn_cast<LoadInst>(idx);
@@ -89,6 +89,8 @@ namespace
           BinaryOperator *incInst = NULL;
           bool ubInclusive = false;
 
+          errs() << "1\n";
+
           // Try to find the store and value for the loop lower bound.
           for (b_it I = (L->getLoopPreheader())->begin(); 
                I != (L->getLoopPreheader())->end() && lbStore == NULL; 
@@ -100,6 +102,9 @@ namespace
               }
             }
           }
+
+          errs() << "2\n";
+
 
           if (loop_lb == NULL) continue;
 
@@ -119,9 +124,6 @@ namespace
                 Value *O0=cmpInst->getOperand(0), *O1=cmpInst->getOperand(1);
                 bool trueExits = L->contains(loopB->getSuccessor(1));
                 bool boundOnLeft = O1 == I;
-                errs() << "True " << (trueExits?"exits: ":"continues: ") 
-                       << *cmpInst << '\n';
-                if (boundOnLeft) errs() << "bound on left.\n";
                 
                 CmpInst::Predicate p = cmpInst->getPredicate();
                 if (trueExits) {
@@ -194,10 +196,9 @@ namespace
             }
           }
           
-          if (loop_ub == NULL || abort == true) continue;
-
-          errs() << "UB: " << *loop_ub << (ubInclusive?" inclusive":"") << '\n' 
-                 << "LB: " << *loop_lb << '\n';
+          if (loop_ub == NULL || abort == true) {
+            continue;
+          }
 
           // Find the increment.
           for (l_it B = L->block_begin(); B != L->block_end() && !incVal; B++) {
@@ -212,43 +213,93 @@ namespace
                 } else if (dyn_cast<LoadInst>(incInst->getOperand(1))) {
                   incLoad = dyn_cast<LoadInst>(incInst->getOperand(1));
                   incVal = dyn_cast<ConstantInt>(incInst->getOperand(0));
+                } else {
+                  incLoad = NULL;
                 }
-                errs() << "Increment store candidate: " << *incStore << '\n';
-                errs() << "Increment candidate:" << *incInst << '\n';
               }
             }
           }
 
           if (incLoad == NULL || incVal == NULL) continue;
           
+          errs() << "3\n";
+
+
           // If there's a store to the loop induction variable other than the
           // increment or initialization, this optimization cannot happen.
           for (l_it B = L->block_begin(); B != L->block_end(); B++) {
             for (b_it I = (*B)->begin(); I != (*B)->end(); I++) {
               StoreInst *S;
               if ( (S = dyn_cast<StoreInst>(I)) && 
-                   S->getPointerOperand() == P &&
-                   S != incStore && S != lbStore) {
-                errs() << "Rogue store: " << *S << '\n';
+                   S->getPointerOperand() == P && S != incStore) {
                 abort = true;
               }
             }
           }
           if (abort) continue;
 
-          numChecksMoved++;
-         
+          errs() << "4\n";
+
+
+          numChecksMoved++; modified = true;
+
+          // Move the check to the loop preheader.
+
+          // 1. Flag the original bounds check instructions for deletion.
+          toDelete.insert(toDelete.end(), I0); 
+          toDelete.insert(toDelete.end(), I1);
+
+          // 2. Assemble the new bounds check instructions.
+          if (!ubInclusive) 
+            loop_ub = BinaryOperator::CreateNSWAdd(
+              loop_ub, ConstantInt::get(
+                loop_ub->getType(), 1, 
+                true
+              ), "", L->getLoopPreheader()->getTerminator()
+            );
+
+          // 3. Place the new bounds check instructions in the loop preheader.
+          Instruction::CastOps UBCast, IdxCast;
+
+          unsigned loopubBits = loop_ub->getType()->getPrimitiveSizeInBits();
+          unsigned arrayubBits = ub->getType()->getPrimitiveSizeInBits();
+          
+          if (loopubBits == 64) IdxCast = Instruction::BitCast;
+          else if (loopubBits < 64) IdxCast = Instruction::ZExt;
+          else IdxCast = Instruction::Trunc;
+
+          if (arrayubBits == 64) UBCast = Instruction::BitCast;
+          else if (arrayubBits < 64) UBCast = Instruction::ZExt;
+          else UBCast = Instruction::Trunc;
+
+          CastInst::Create(UBCast,
+                           ub,
+                           Type::getInt64Ty(
+                             L->getHeader()->getParent()->getContext()
+                           ),
+                           "_arrayref ub", 
+                           L->getLoopPreheader()->getTerminator());
+          CastInst::Create(IdxCast,
+                           loop_ub,
+                           Type::getInt64Ty(
+                             L->getHeader()->getParent()->getContext()
+                           ),
+                           "_arrayref idx",
+                           L->getLoopPreheader()->getTerminator());
+
+          errs() << "UB: " << *loop_ub << "\nLB: " << *loop_lb << "\nIDX: " 
+                 << *P << '\n';
         }
+      }
+
+      for (list<Instruction*>::iterator i = toDelete.begin(); 
+           i != toDelete.end(); i++) {
+        (*i)->eraseFromParent();
       }
 
       return modified;
     }
 
-    //Add required analyses here
-    void getAnalysisUsage(AnalysisUsage &AU) const
-    {
-
-    }
   };
 
   char BoundChecks::ID = 0;
