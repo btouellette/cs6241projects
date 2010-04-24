@@ -48,37 +48,8 @@ namespace
 
     virtual bool runOnFunction(Function &F)
     {
-      DominatorTree *DT = &getAnalysis<DominatorTree>();
-      LoopInfo *LI = &getAnalysis<LoopInfo>();
-      // Iterates over all the top level loops in the function
-      for(LoopInfo::iterator I = LI->begin(), E = LI->end(); I != E; ++I) {
-        Loop *L = *I;
-        
-        SmallVector<BasicBlock*, 20> exits;
-        // Get the set of exiting blocks from the current loop
-        L->getExitingBlocks(exits);
-
-        set<BasicBlock*> loopDomBlocks; 
-        vector<BasicBlock*> loopBlocks = L->getBlocks();
-        
-        bool valid = true;
-        // Iterate over all the BBs in the current loop
-        for(int k = 0; k < loopBlocks.size(); k++) {
-          BasicBlock *BB = loopBlocks[k];
-          // Check whether the current BB doms all exits
-          for(int j = 0; j < exits.size(); j++) {
-            BasicBlock *BB_exit = exits[j];
-            if(!DT->dominates(BB,BB_exit)) {
-              valid = false;
-            }
-          }
-          // If the current BB doms all loop exits
-          if(valid) {
-            loopDomBlocks.insert(BB);
-          }
-          valid = true;
-        }
-      }
+      // Propagate checks out of loops if possible
+      loopPropagation(&F);
 
       map< BasicBlock*,set<inspair> > IN;
       map< BasicBlock*,set<inspair> > OUT;
@@ -133,6 +104,48 @@ namespace
       numChecksDeleted = numChecksDeleted/2;
       //Possibly modified function so return true
       return true;
+    }
+
+    void loopPropagation(Function *F)
+    {
+      DominatorTree *DT = &getAnalysis<DominatorTree>();
+      LoopInfo *LI = &getAnalysis<LoopInfo>();
+      // Iterates over all the top level loops in the function
+      for(LoopInfo::iterator I = LI->begin(), E = LI->end(); I != E; ++I) {
+        Loop *L = *I;
+        
+        SmallVector<BasicBlock*, 20> exits;
+        // Get the set of exiting blocks from the current loop
+        L->getExitingBlocks(exits);
+
+        set<BasicBlock*> loopDomBlocks; 
+        vector<BasicBlock*> loopBlocks = L->getBlocks();
+        
+        bool valid = true;
+        // Iterate over all the BBs in the current loop
+        for(int k = 0; k < loopBlocks.size(); k++) {
+          BasicBlock *BB = loopBlocks[k];
+          // Check whether the current BB doms all exits
+          for(int j = 0; j < exits.size(); j++) {
+            BasicBlock *BB_exit = exits[j];
+            if(!DT->dominates(BB,BB_exit)) {
+              valid = false;
+            }
+          }
+          // If the current BB doms all loop exits
+          if(valid) {
+            loopDomBlocks.insert(BB);
+          }
+          valid = true;
+        }
+      }
+
+      // If check is in loomDomBlocks and all definitions are from outside the
+      // loop we can move it out of the loop (i)
+      //
+      // Discarding (ii) and (iii) since we use a single check rather than
+      // utilizing monotonicity
+
     }
 
     set<Instruction*> globalElimination(Function *F,
