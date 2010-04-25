@@ -182,6 +182,10 @@ namespace
             }
           }
         }
+        // (ii) and (iii) involve checks of type lb<=i and i<=ub which is
+        // irrelevant with the single check scheme used by our insertion method
+        // (iv) is a subset of our Bounding pass and not included
+
         // Move all checks in propagated out of the loop
         BasicBlock *preheader = L->getLoopPreheader();
         if(preheader == NULL || preheader->getTerminator() == NULL) {
