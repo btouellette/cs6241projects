@@ -79,12 +79,17 @@ The function is then examined on a basic block level and locally redundant check
 
 \subsection{Global Elimination}
 
-Global elimination differs from Gupta's paper slightly as monotonicity is not involved and all values are SSA. The choice to use one-sided unsigned checks removes any potential for optimization through exploiting monotonically increasing or decreasing values; however, it reduces the number of checks required by half upfront which results in a number of checks as small as if every check can be exploited using monotonicity.
+Global elimination differs from Gupta's paper slightly as monotonicity is not involved and all values are SSA. The choice to use one-sided unsigned checks removes any potential for optimization through exploiting monotonically increasing or decreasing values; however, it reduces the number of checks required by half upfront which results in a number of checks as small as if every check can be exploited using monotonicity. The dataflow equations used to determine whether global elimination is feasible are given below.
+\begin{eqnarray*}
+C\_IN[B_{1}]&=&\phi\text{, where } B_{1} \text{ is the initial basic block}\\
+C\_IN[B]&=&\cap C\_OUT[P]_{P\in Pred(B)}\text{, where Pred(B) is the set of basic blocks that are predecessors of B}\\
+C\_OUT[B]&=&(C\_IN[B] - C\_KILL[B]) \cup C\_GEN[B]
+\end{eqnarray*}
 
-\begin{math}
-C\_IN[B_{1}]=\phi\text{, where B_{1} is the initial basic block}
-C\_IN[B_{1}]=\cap C\_OUT[P], where Pred(B) is the set of basic blocks that are predecessors of B
-\end{math}
+Since our target code is already translated to SSA the C\_KILL set will be empty in all situations and C\_GEN is simply the set of checks that are present in each basic block. The C\_IN and C\_OUT sets are computed iteratively until they have stabilized. Then each basic block is examined and any check inside is potentially eliminated by checks that are at least as strict and are present in the C\_IN set. "At least as strict" is implemented in the same way as for local elimination.
+
+\subsection{Propagation of Checks Out of Loops}
+
 
 \section{Further Bounds Check Pruning}
 
