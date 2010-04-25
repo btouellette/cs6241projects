@@ -20,7 +20,7 @@ testcases.bc : libCheck-debug.bc testcases.c
 	opt -f -load ./phase1.so -stats -BoundChecks -OptimizeChecks -InsertChecks -o tmp1.bc \
 		tmp0.bc
 	llvm-ld -o testcases tmp1.bc libCheck-debug.bc
-	rm tmp1.bc
+	rm tmp0.bc tmp1.bc
 
 libCheck.bc : libCheck.cpp
 	llvm-g++ --emit-llvm -c libCheck.cpp -o libCheck.bc
