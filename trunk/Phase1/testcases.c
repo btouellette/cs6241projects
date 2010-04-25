@@ -41,7 +41,18 @@ int main(int argc, char** argv) {
      test[39][39] = 1; 
 
    while(test[35][35] < 10)
+   {
      test[35][35] = test[35][35] + 1;
+     if(c < 100)
+     {
+       test[29][29] = 1;
+     }
+     else
+     {
+       test[29][29] = 1;
+     }
+   }
+
 
 
    int ARR[15];
