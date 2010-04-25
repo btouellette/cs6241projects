@@ -114,6 +114,7 @@ namespace
     {
       int oldHoisted = numChecksHoisted;
       int oldPropagated = numChecksPropagated;
+
       DominatorTree *DT = &getAnalysis<DominatorTree>();
       LoopInfo *LI = &getAnalysis<LoopInfo>();
 
@@ -191,9 +192,12 @@ namespace
               //errs() << "-----------------------------------\n";
               BasicBlock *succ = *SI;
               //errs() << *succ << "\n";
+              // On the first block we initialize the intersection set to all
+              // checks in this BB
               if(SI == succ_begin(BB)) {
+                // Check all instructions in the successor
                 for(BasicBlock::iterator I = succ->begin(), E = succ->end(); I != E; ++I) {
-                // Check to see if this instruction is an upper bounds check
+                  // Check to see if this instruction is an upper bounds check
                   if(!I->getName().str().compare(0, 12, "_arrayref ub")) {
                     Instruction *Iub = &(*I);
                     Instruction *Iidx = &(*(++I));
@@ -203,32 +207,43 @@ namespace
                   }
                 }
               }
+              // Ohterwise we remove anything from the intersect set that is not
+              // in the current BB
               else {
                 set<inspair> current;
+                // Check all instructions in the successor
                 for(BasicBlock::iterator I = succ->begin(), E = succ->end(); I != E; ++I) {
-                // Check to see if this instruction is an upper bounds check
+                  // Check to see if this instruction is an upper bounds check
                   if(!I->getName().str().compare(0, 12, "_arrayref ub")) {
                     Instruction *Iub = &(*I);
                     Instruction *Iidx = &(*(++I));
                     current.insert(make_pair(Iub, Iidx));
                   }
                 }
+                // Iterate over everything currently in the intersection set
                 set<inspair>::iterator it2;
                 for(it2 = intersect.begin(); it2 != intersect.end(); ++it2) {
                   inspair intersectPair = *it2;
                   bool valid = false;
+                  // Iterate over everything in the current successor looking
+                  // for something the same as the current item in the
+                  // intersection set
                   set<inspair>::iterator it3;
                   for(it3 = current.begin(); it3 != current.end(); ++it3) {
                     inspair currentPair = *it3;
+                    // Check that the upper bounds are identical
                     bool ubValid = false;
                     Instruction *Iub1 = intersectPair.first;
                     Instruction *Iub2 = currentPair.first;
                     // Pull out the actual values of the upper bound and index
                     Value *ub1 = Iub1->getOperand(0);
                     Value *ub2 = Iub2->getOperand(0);
+                    // If they are instructions just compare the pointers
                     if(isa<Instruction>(*ub1) && isa<Instruction>(*ub2) && ub1 == ub2) {
                       ubValid = true;
                     }
+                    // Otherwise we need to compare the actual values of the
+                    // constants
                     else if(isa<ConstantInt>(*ub1) && isa<ConstantInt>(*ub2)) {
                       ConstantInt *consUB1 = dynamic_cast<ConstantInt*>(ub1);
                       ConstantInt *consUB2 = dynamic_cast<ConstantInt*>(ub2);
@@ -239,15 +254,19 @@ namespace
                         ubValid = true;
                       }
                     }
+                    // Now check that the indices are identical
                     bool idxValid = false;
                     Instruction *Iidx1 = intersectPair.second;
                     Instruction *Iidx2 = currentPair.second;
                     // Pull out the actual values of the upper bound and index
                     Value *idx1 = Iidx1->getOperand(0);
                     Value *idx2 = Iidx2->getOperand(0);
+                    // If they are instructions just compare the pointers
                     if(isa<Instruction>(*idx1) && isa<Instruction>(*idx2) && idx1 == idx2) {
                       idxValid = true;
                     }
+                    // Otherwise we need to compare the actual values of the
+                    // constants
                     else if(isa<ConstantInt>(*idx1) && isa<ConstantInt>(*idx2)) {
                       ConstantInt *consIDX1 = dynamic_cast<ConstantInt*>(idx1);
                       ConstantInt *consIDX2 = dynamic_cast<ConstantInt*>(idx2);
@@ -258,25 +277,35 @@ namespace
                         idxValid = true;
                       }
                     }
+                    // Only if the UB and IDX of this pair is the same as the
+                    // one we're examining in the intersect set do we mark it as
+                    // valid (not removed). We'll keep track of all the
+                    // duplicate checks to remove later in intersectMap
                     if(ubValid && idxValid) {
                       valid = true;
                       intersectMap[intersectPair].insert(currentPair);
                     }
                   }
                   if(!valid) {
+                    // If the check wasn't in the current successor then it is
+                    // removed from the intersection 
                     intersect.erase(intersectPair);
                   }
                 }
               }
             }
+            // A non-empty intersection set means that we are going to hoist so
+            // mark the change flag
             if(!intersect.empty()) {
               change = true;
+              // Iterate over all the intersections we found
               set<inspair>::iterator it;
               for(it=intersect.begin(); it != intersect.end(); ++it) {
                 inspair current = *it;
                 //errs() << *current.first << "\n";
                 //errs() << *current.second << "\n";
                 set<inspair>::iterator mapIt;
+                // Remove the duplicates from the successor BBs
                 if(intersectMap.find(current) != intersectMap.end()) {
                   for(mapIt=intersectMap[current].begin(); mapIt != intersectMap[current].end(); ++mapIt) {
                     inspair toDel = *mapIt;
@@ -286,6 +315,7 @@ namespace
                   }
                 }
                 //errs() << *BB << "\n";
+                // And hoist the original one we found into the current BB
                 current.first->moveBefore(BB->getTerminator());
                 current.second->moveBefore(BB->getTerminator());
                 //errs() << *BB << "\n";
@@ -335,12 +365,14 @@ namespace
         // irrelevant with the single check scheme used by our insertion method
         // (iv) is a subset of our Bounding pass and not included
 
-        // Move all checks in propagated out of the loop
         BasicBlock *preheader = L->getLoopPreheader();
+        // Verify that there is a valid preheader and that it is well-formed
+        // (has a terminator instruction)
         if(preheader == NULL || preheader->getTerminator() == NULL) {
           errs() << "No preheader detected. Nonstandard loop?\n";
         }
         else {
+          // Move all checks in propagated out of the loop
           set<inspair>::iterator propIt;
           for(propIt = propagated.begin(); propIt != propagated.end(); ++propIt) {
             inspair I = *propIt;
@@ -351,6 +383,7 @@ namespace
           }
         }
       }
+      // Return a boolean indicating if this function actually did anything
       return (oldHoisted != numChecksHoisted || oldPropagated != numChecksPropagated);
     }
 
