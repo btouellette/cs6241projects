@@ -52,8 +52,8 @@ namespace
 
     virtual bool runOnFunction(Function &F)
     {
-      // Propagate checks out of loops if possible
-      loopPropagation(&F);
+      // Propagate checks out of loops if possible, repeating until no change
+      while(loopPropagation(&F));
 
       map< BasicBlock*,set<inspair> > IN;
       map< BasicBlock*,set<inspair> > OUT;
@@ -110,8 +110,10 @@ namespace
       return true;
     }
 
-    void loopPropagation(Function *F)
+    bool loopPropagation(Function *F)
     {
+      int oldHoisted = numChecksHoisted;
+      int oldPropagated = numChecksPropagated;
       DominatorTree *DT = &getAnalysis<DominatorTree>();
       LoopInfo *LI = &getAnalysis<LoopInfo>();
 
@@ -349,6 +351,7 @@ namespace
           }
         }
       }
+      return (oldHoisted != numChecksHoisted || oldPropagated != numChecksPropagated);
     }
 
     set<Instruction*> globalElimination(Function *F,
