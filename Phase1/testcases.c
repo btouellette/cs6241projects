@@ -43,16 +43,29 @@ int main(int argc, char** argv) {
    while(test[35][35] < 10)
    {
      test[35][35] = test[35][35] + 1;
+     // These will get hoisted but not propagated outside the loop since they
+     // aren't guaranteed to be executed
      if(c < 100)
-     {
        test[29][29] = 1;
-     }
      else
-     {
        test[29][29] = 1;
-     }
    }
 
+   // Testing nested loops for hoisting and propagation
+   while(argc < 0)
+   {
+     while(argc < 0)
+     {
+       if(c < 100)
+         test[25][25] = 1;
+       else
+         test[25][25] = 1;
+     }
+     if(c < 100)
+       test[25][25] = 1;
+     else
+       test[25][25] = 1;
+   }
 
 
    int ARR[15];
