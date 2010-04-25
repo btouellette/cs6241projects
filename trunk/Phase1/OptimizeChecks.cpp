@@ -280,10 +280,13 @@ namespace
                     inspair toDel = *mapIt;
                     toDel.first->eraseFromParent();
                     toDel.second->eraseFromParent();
+                    numChecksHoisted++;
                   }
                 }
+                //errs() << *BB << "\n";
                 current.first->moveBefore(BB->getTerminator());
                 current.second->moveBefore(BB->getTerminator());
+                //errs() << *BB << "\n";
                 numChecksHoisted++;
               }
             }
@@ -296,6 +299,7 @@ namespace
         set<BasicBlock*>::iterator it;
         for(it = loopDomBlocks.begin(); it != loopDomBlocks.end(); ++it) {
           BasicBlock *BB = *it;
+          //errs() << *BB << "\n";
           for(BasicBlock::iterator I = BB->begin(), E = BB->end(); I != E; ++I) {
             // Check to see if this instruction is an upper bounds check
             if(!I->getName().str().compare(0, 12, "_arrayref ub")) {
