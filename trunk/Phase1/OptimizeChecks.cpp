@@ -169,6 +169,7 @@ namespace
           }
           if(unique && valid) {
             P.insert(BB);
+            //errs() << *BB << "\n";
           }
         }
 
@@ -176,11 +177,122 @@ namespace
         bool change = true;
         while(change) {
           change = false;
+          set<BasicBlock*>::iterator it;
+          // We only propagate checks into BasicBlocks in P
+          for(it = P.begin(); it != P.end(); ++it) {
+            BasicBlock *BB = *it;
+            // Find intersection of checks performed in all successors
+            set<inspair> intersect;
+            map< inspair, set<inspair> > intersectMap;
+            bool firstRun = true;
+            for(succ_iterator SI = succ_begin(BB), SE = succ_end(BB); SI != SE; ++SI) {
+              //errs() << "-----------------------------------\n";
+              BasicBlock *succ = *SI;
+              //errs() << *succ << "\n";
+              if(SI == succ_begin(BB)) {
+                for(BasicBlock::iterator I = succ->begin(), E = succ->end(); I != E; ++I) {
+                // Check to see if this instruction is an upper bounds check
+                  if(!I->getName().str().compare(0, 12, "_arrayref ub")) {
+                    Instruction *Iub = &(*I);
+                    Instruction *Iidx = &(*(++I));
+                    intersect.insert(make_pair(Iub, Iidx));
+                    //errs() << *Iub << "\n";
+                    //errs() << *Iidx << "\n";
+                  }
+                }
+              }
+              else {
+                set<inspair> current;
+                for(BasicBlock::iterator I = succ->begin(), E = succ->end(); I != E; ++I) {
+                // Check to see if this instruction is an upper bounds check
+                  if(!I->getName().str().compare(0, 12, "_arrayref ub")) {
+                    Instruction *Iub = &(*I);
+                    Instruction *Iidx = &(*(++I));
+                    current.insert(make_pair(Iub, Iidx));
+                  }
+                }
+                set<inspair>::iterator it2;
+                for(it2 = intersect.begin(); it2 != intersect.end(); ++it2) {
+                  inspair intersectPair = *it2;
+                  bool valid = false;
+                  set<inspair>::iterator it3;
+                  for(it3 = current.begin(); it3 != current.end(); ++it3) {
+                    inspair currentPair = *it3;
+                    bool ubValid = false;
+                    Instruction *Iub1 = intersectPair.first;
+                    Instruction *Iub2 = currentPair.first;
+                    // Pull out the actual values of the upper bound and index
+                    Value *ub1 = Iub1->getOperand(0);
+                    Value *ub2 = Iub2->getOperand(0);
+                    if(isa<Instruction>(*ub1) && isa<Instruction>(*ub2) && ub1 == ub2) {
+                      ubValid = true;
+                    }
+                    else if(isa<ConstantInt>(*ub1) && isa<ConstantInt>(*ub2)) {
+                      ConstantInt *consUB1 = dynamic_cast<ConstantInt*>(ub1);
+                      ConstantInt *consUB2 = dynamic_cast<ConstantInt*>(ub2);
+                      // Get the sign extended value (for zero extended use ZExt)
+                      int64_t intUB1 = consUB1->getSExtValue();
+                      int64_t intUB2 = consUB2->getSExtValue();
+                      if(intUB1 == intUB2) {
+                        ubValid = true;
+                      }
+                    }
+                    bool idxValid = false;
+                    Instruction *Iidx1 = intersectPair.second;
+                    Instruction *Iidx2 = currentPair.second;
+                    // Pull out the actual values of the upper bound and index
+                    Value *idx1 = Iidx1->getOperand(0);
+                    Value *idx2 = Iidx2->getOperand(0);
+                    if(isa<Instruction>(*idx1) && isa<Instruction>(*idx2) && idx1 == idx2) {
+                      idxValid = true;
+                    }
+                    else if(isa<ConstantInt>(*idx1) && isa<ConstantInt>(*idx2)) {
+                      ConstantInt *consIDX1 = dynamic_cast<ConstantInt*>(idx1);
+                      ConstantInt *consIDX2 = dynamic_cast<ConstantInt*>(idx2);
+                      // Get the sign extended value (for zero extended use ZExt)
+                      int64_t intIDX1 = consIDX1->getSExtValue();
+                      int64_t intIDX2 = consIDX2->getSExtValue();
+                      if(intIDX1 == intIDX2) {
+                        idxValid = true;
+                      }
+                    }
+                    if(ubValid && idxValid) {
+                      valid = true;
+                      intersectMap[intersectPair].insert(currentPair);
+                    }
+                  }
+                  if(!valid) {
+                    intersect.erase(intersectPair);
+                  }
+                }
+              }
+            }
+            if(!intersect.empty()) {
+              change = true;
+              set<inspair>::iterator it;
+              for(it=intersect.begin(); it != intersect.end(); ++it) {
+                inspair current = *it;
+                //errs() << *current.first << "\n";
+                //errs() << *current.second << "\n";
+                set<inspair>::iterator mapIt;
+                if(intersectMap.find(current) != intersectMap.end()) {
+                  for(mapIt=intersectMap[current].begin(); mapIt != intersectMap[current].end(); ++mapIt) {
+                    inspair toDel = *mapIt;
+                    toDel.first->eraseFromParent();
+                    toDel.second->eraseFromParent();
+                  }
+                }
+                current.first->moveBefore(BB->getTerminator());
+                current.second->moveBefore(BB->getTerminator());
+                numChecksHoisted++;
+              }
+            }
+          }
         }
 
         // Step 3: Move appropriate checks out of the loop
         // (i) Check uses only definitions from outside the loop body
-        set<Instruction*> propagated;
+        set<inspair> propagated;
         set<BasicBlock*>::iterator it;
         for(it = loopDomBlocks.begin(); it != loopDomBlocks.end(); ++it) {
           BasicBlock *BB = *it;
@@ -208,8 +320,7 @@ namespace
                 }
               }
               if(valid) {
-                propagated.insert(Iub);
-                propagated.insert(Iidx);
+                propagated.insert(make_pair(Iub, Iidx));
               }
             }
           }
@@ -224,11 +335,12 @@ namespace
           errs() << "No preheader detected. Nonstandard loop?\n";
         }
         else {
-          set<Instruction*>::iterator propIt;
+          set<inspair>::iterator propIt;
           for(propIt = propagated.begin(); propIt != propagated.end(); ++propIt) {
-            Instruction *I = *propIt;
+            inspair I = *propIt;
             // Move the checks to the end of the preheader
-            I->moveBefore(preheader->getTerminator());
+            I.first->moveBefore(preheader->getTerminator());
+            I.second->moveBefore(preheader->getTerminator());
             numChecksPropagated++;
           }
         }
