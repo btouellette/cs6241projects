@@ -2,6 +2,7 @@
 \usepackage{multicol}
 \usepackage{graphicx}
 \usepackage{amstext}
+\usepackage{amsmath}
 \usepackage[left=1in,top=1in,right=1in,bottom=1in,nohead]{geometry}
 
 \title{CS6241 Project Phase 1}
@@ -20,6 +21,14 @@ LLVM takes these annotations and inserts checks. The checks inserted are
 one-sided unsigned comparisons. Since C and C++ arrays can have no starting
 index other than zero, casting all indices to unsigned integers and checking the
 index against the upper bound will always be sufficient.
+\\\\
+\noindent All array checks are supported:
+\begin{itemize}
+\item Arrays of any type
+\item Compile-time unknown sized arrays
+\item Global arrays
+\item n-dimensional arrays
+\end{itemize}
 
 \subsection{Modifications to GCC}
 
@@ -62,8 +71,14 @@ checks and the values to use.
 \end{itemize}
 \item mpeg2dec
 \begin{itemize}
-\item 97124 bytes - mpeg2dec-checked (3877495 total checks, 121 static)
+\item 95125 bytes - mpeg2dec-checked (121 static checks)
+\begin{itemize}
+\item timed at 0.030s
+\end{itemize}
 \item 90900 bytes - mpeg2dec-unchecked
+\begin{itemize}
+\item timed at 0.027s
+\end{itemize}
 \end{itemize}
 \end{itemize}
 
@@ -80,16 +95,33 @@ The function is then examined on a basic block level and locally redundant check
 \subsection{Global Elimination}
 
 Global elimination differs from Gupta's paper slightly as monotonicity is not involved and all values are SSA. The choice to use one-sided unsigned checks removes any potential for optimization through exploiting monotonically increasing or decreasing values; however, it reduces the number of checks required by half upfront which results in a number of checks as small as if every check can be exploited using monotonicity. The dataflow equations used to determine whether global elimination is feasible are given below.
-\begin{eqnarray*}
-C\_IN[B_{1}]&=&\phi\text{, where } B_{1} \text{ is the initial basic block}\\
-C\_IN[B]&=&\cap C\_OUT[P]_{P\in Pred(B)}\text{, where Pred(B) is the set of basic blocks that are predecessors of B}\\
-C\_OUT[B]&=&(C\_IN[B] - C\_KILL[B]) \cup C\_GEN[B]
-\end{eqnarray*}
+\begin{align*}
+C\_IN[B_{1}]&=\phi\text{, where } B_{1} \text{ is the initial basic block}\\
+C\_IN[B]&=\cap C\_OUT[P]_{P \in Pred(B)}\text{, where Pred(B) is the set of basic blocks that are predecessors of B}\\
+C\_OUT[B]&=(C\_IN[B] - C\_KILL[B]) \cup C\_GEN[B]
+\end{align*}
 
 Since our target code is already translated to SSA the C\_KILL set will be empty in all situations and C\_GEN is simply the set of checks that are present in each basic block. The C\_IN and C\_OUT sets are computed iteratively until they have stabilized. Then each basic block is examined and any check inside is potentially eliminated by checks that are at least as strict and are present in the C\_IN set. "At least as strict" is implemented in the same way as for local elimination.
 
 \subsection{Propagation of Checks Out of Loops}
 
+If possible checks will be propagated out of loops to reduce the dynamic check count. Checks may be propagated across multiple levels of loops. Gupta outlines three steps for propagation. First, valid basic blocks from which propagation can be done are marked. Valid blocks will dominate all loop exits. Second, checks in blocks which do not dominate all loop exits are hoisted to blocks which do dominate all loop exits when possible. The algorithm for hoisting is shown below.
+\begin{align*}
+ND&\text{ - set of nodes which do not dominate all loop exits}\\
+C(n)&\text{ - set of checks performed in } n\\
+P&\text{ - set of nodes such that for } n \in P, succ(n) \cap ND \neq \phi \text{ and } n \text{ is the unique predecessor of nodes in } succ(n)
+\end{align*}
+\begin{align*}
+\text{while(checks are hoisted):}&\\
+\text{Hoist check }& e \text{ into } n \text{ from blocks in } succ(n) \text{ if:}\\
+&e \in \cap C(s) _{s \in succ(n)}\\
+&n \in P\\
+&e \text{ uses same defs in each successor}\\
+\end{align*}
+
+Once hoisting has been finished any checks contained in the set of basic blocks which dominate all loop exits are examined for potential propagation out of the loop. Since our approach negates the need to examine monotonicity and our approach in Further Bounds Check Pruning is a superset of the for loop propagation Gupta presents the only checks propagated are those which are loop invariant. Since propagation out of loops enables further global elimination it is performed first.
+
+This algorithm is of limited use for many standard loops. In the CFG representation of while and for loops that LLVM uses the header and the loop exit are the same basic block and also the only basic block within the loop which dominates the loop exit. Since the header has a successor which is outside the loop, only checks which are common to both inside and outside the loop have the potential to be hoisted into the header and thus considered for propagation out of the loop. This scenario is uncommon in normal code constructs.
 
 \section{Further Bounds Check Pruning}
 
