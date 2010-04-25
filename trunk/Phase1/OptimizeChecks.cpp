@@ -33,6 +33,7 @@ typedef pair<Instruction*,Instruction*> inspair;
 
 namespace
 {
+  STATISTIC(numChecksPropagated, "Number of bounds checks propagated.");
   STATISTIC(numChecksDeleted, "Number of bounds checks deleted.");
 
   struct OptimizeChecks : public FunctionPass
@@ -44,6 +45,7 @@ namespace
     virtual bool doInitialization(Module &M) 
     {
       numChecksDeleted = 0;
+      numChecksPropagated = 0;
     }
 
     virtual bool runOnFunction(Function &F)
@@ -110,12 +112,15 @@ namespace
     {
       DominatorTree *DT = &getAnalysis<DominatorTree>();
       LoopInfo *LI = &getAnalysis<LoopInfo>();
+
       // Iterates over all the top level loops in the function
       for(LoopInfo::iterator I = LI->begin(), E = LI->end(); I != E; ++I) {
+        // Step 1: Determine the blocks from which checks can be propagated out
+        // of loops
         Loop *L = *I;
         
-        SmallVector<BasicBlock*, 20> exits;
         // Get the set of exiting blocks from the current loop
+        SmallVector<BasicBlock*, 20> exits;
         L->getExitingBlocks(exits);
 
         set<BasicBlock*> loopDomBlocks; 
@@ -138,14 +143,60 @@ namespace
           }
           valid = true;
         }
+        // Step 2: Propagate checks from nodes that do not dominate all loop exits
+        // to nodes that dominate all loop exits
+
+        // Step 3: Move appropriate checks out of the loop
+        // (i) Check uses only definitions from outside the loop body
+        set<Instruction*> propagated;
+        set<BasicBlock*>::iterator it;
+        for(it = loopDomBlocks.begin(); it != loopDomBlocks.end(); ++it) {
+          BasicBlock *BB = *it;
+          for(BasicBlock::iterator I = BB->begin(), E = BB->end(); I != E; ++I) {
+            // Check to see if this instruction is an upper bounds check
+            if(!I->getName().str().compare(0, 12, "_arrayref ub")) {
+              bool valid = true;
+              Instruction *Iub = &(*I);
+              Instruction *Iidx = &(*(++I));
+              // Pull out the actual values of the upper bound and index
+              Instruction *ub = dynamic_cast<Instruction*>(Iub->getOperand(0));
+              Instruction *idx = dynamic_cast<Instruction*>(Iidx->getOperand(0));
+              // The move is only valid if any instructions UB or IDX reference
+              // are not contained inside this loop. We check that the Loop L
+              // doesn't contain the BasicBlock the referenced instruction
+              // lives in.
+              if(ub != NULL) {
+                if(L->contains(ub->getParent())) {
+                  valid = false;
+                }
+              }
+              if(idx != NULL) {
+                if(L->contains(idx->getParent())) {
+                  valid = false;
+                }
+              }
+              if(valid) {
+                propagated.insert(Iub);
+                propagated.insert(Iidx);
+              }
+            }
+          }
+        }
+        // Move all checks in propagated out of the loop
+        BasicBlock *preheader = L->getLoopPreheader();
+        if(preheader == NULL || preheader->getTerminator() == NULL) {
+          errs() << "No preheader detected. Nonstandard loop?\n";
+        }
+        else {
+          set<Instruction*>::iterator propIt;
+          for(propIt = propagated.begin(); propIt != propagated.end(); ++propIt) {
+            Instruction *I = *propIt;
+            // Move the checks to the end of the preheader
+            I->moveBefore(preheader->getTerminator());
+            numChecksPropagated++;
+          }
+        }
       }
-
-      // If check is in loomDomBlocks and all definitions are from outside the
-      // loop we can move it out of the loop (i)
-      //
-      // Discarding (ii) and (iii) since we use a single check rather than
-      // utilizing monotonicity
-
     }
 
     set<Instruction*> globalElimination(Function *F,
