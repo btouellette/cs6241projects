@@ -33,6 +33,7 @@ typedef pair<Instruction*,Instruction*> inspair;
 
 namespace
 {
+  STATISTIC(numChecksHoisted, "Number of bounds checks hoisted.");
   STATISTIC(numChecksPropagated, "Number of bounds checks propagated.");
   STATISTIC(numChecksDeleted, "Number of bounds checks deleted.");
 
@@ -44,8 +45,9 @@ namespace
 
     virtual bool doInitialization(Module &M) 
     {
-      numChecksDeleted = 0;
+      numChecksHoisted = 0;
       numChecksPropagated = 0;
+      numChecksDeleted = 0;
     }
 
     virtual bool runOnFunction(Function &F)
@@ -145,6 +147,36 @@ namespace
         }
         // Step 2: Propagate checks from nodes that do not dominate all loop exits
         // to nodes that dominate all loop exits
+        //
+        // Calculate set P of valid propagation targets
+        set<BasicBlock*> P;
+        for(int k = 0; k < loopBlocks.size(); k++) {
+          BasicBlock *BB = loopBlocks[k];
+          bool unique = true;
+          bool valid = false;
+          for(succ_iterator SI = succ_begin(BB), SE = succ_end(BB); SI != SE; ++SI) {
+            BasicBlock *succ = *SI;
+            // Ensure that all successors of the BB have the BB as their unique
+            // predecessor
+            if(succ->getUniquePredecessor() != BB) {
+              unique = false;
+            }
+            // Ensure that at least one successor of the BB is in the set of
+            // nodes which do not dominate the loop exits
+            if(loopDomBlocks.count(succ) == 0) {
+              valid = true;
+            }
+          }
+          if(unique && valid) {
+            P.insert(BB);
+          }
+        }
+
+        // Now actually perform the propagations
+        bool change = true;
+        while(change) {
+          change = false;
+        }
 
         // Step 3: Move appropriate checks out of the loop
         // (i) Check uses only definitions from outside the loop body
