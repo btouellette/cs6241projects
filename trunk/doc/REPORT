@@ -1,6 +1,7 @@
 \documentclass{article}
 \usepackage{multicol}
 \usepackage{graphicx}
+\usepackage{amstext}
 \usepackage[left=1in,top=1in,right=1in,bottom=1in,nohead]{geometry}
 
 \title{CS6241 Project Phase 1}
@@ -45,25 +46,53 @@ checks and the values to use.
 
 \subsection{InsertChecks Pass}
 
-- In the LLVM pass, calls to into libCheck are added for every array.
-- To optimize these checks, the dummy instructions indicating their presence 
+\begin{itemize}
+\item In the LLVM pass, calls to into libCheck are added for every array.
+\item To optimize these checks, the dummy instructions indicating their presence 
   must be moved before InsertChecks is run.
+\end{itemize}
 
 \subsection{Impact}
 
-- 6.0% code size increase and 6.1% execution time increase with no optimization.
-- Average of 5.97 bytes per bounds check.
+\begin{itemize}
+\item LAME
+\begin{itemize}
+\item 6.0\% code size increase and 6.1\% execution time increase with no optimization.
+\item Average of 5.97 bytes per bounds check.
+\end{itemize}
+\item mpeg2dec
+\begin{itemize}
+\item 97124 bytes - mpeg2dec-checked (3877495 total checks, 121 static)
+\item 90900 bytes - mpeg2dec-unchecked
+\end{itemize}
+\end{itemize}
 
 \section{Bounds Check Pruning}
 
-- Eliminating checks whose arguments are constants.
-- Eliminating redundant local checks within a basic block. (Gupta p.138)
+\subsection{Constant Removal}
+
+If both the array index and the upper bound are constants then the check can be performed at compile time. Checks that evaluate true are removed from the output code and checks that evaluate false are left in to potentially be revealed at run-time.
+
+\subsection{Local Elimination}
+
+The function is then examined on a basic block level and locally redundant checks are removed. A check is locally redundant if one that is at least as strict as it is performed earlier in the basic block. Since the checks utilized are one-sided comparisons on unsigned numbers some care must be taken when determining what is "more strict" as it depends on whether the upper bound and index are constants or SSA values. Checks are eliminated locally if there is a check with a lower upper bound and identical index or with identical upper bounds and an index between 0 and a previously checked index.
+
+\subsection{Global Elimination}
+
+Global elimination differs from Gupta's paper slightly as monotonicity is not involved and all values are SSA. The choice to use one-sided unsigned checks removes any potential for optimization through exploiting monotonically increasing or decreasing values; however, it reduces the number of checks required by half upfront which results in a number of checks as small as if every check can be exploited using monotonicity.
+
+\begin{math}
+C\_IN[B_{1}]=\phi\text{, where B_{1} is the initial basic block}
+C\_IN[B_{1}]=\cap C\_OUT[P], where Pred(B) is the set of basic blocks that are predecessors of B
+\end{math}
 
 \section{Further Bounds Check Pruning}
 
 \subsection{Profiling Infrastructure in libCheck.cpp}
 
-- Tracks address and 
+\begin{itemize}
+\item Tracks address and 
+\end{itemize}
 
 \subsection{The Most Frequent Checks}
 
