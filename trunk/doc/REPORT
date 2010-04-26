@@ -55,11 +55,19 @@ checks and the values to use.
 
 \subsection{InsertChecks Pass}
 
-\begin{itemize}
-\item In the LLVM pass, calls to into libCheck are added for every array.
-\item To optimize these checks, the dummy instructions indicating their presence 
-  must be moved before InsertChecks is run.
-\end{itemize}
+In the LLVM pass, calls into libCheck are added for each array access that was
+marked during compile time. A call to 
+\texttt{__checkArrayBounds(uint64, uint64)} becomes the sole use for the two
+cast instructions. 
+Using a subroutine call, on the hardware level, for each array bound check would
+be prohibitively slow. InsertChecks relies on LLVM's interprocedural optimizer
+to inline each call to \texttt{checkArrayBounds()} so that it becomes only a few
+instructions. A subroutine penalty is only encountered when there the bound
+check fails, and is only encountered once since this results in program 
+termination.
+Optimization of instrumentation added by the InsertChecks 
+pass is performed by moving or deleting the cast instructions it uses as markers
+to add bound checks.
 
 \subsection{Impact}
 
@@ -185,16 +193,16 @@ The following table summarizes the impact of the optimizations on code size and 
 \\\\
 \begin{tabular}{|l|ccc|}
 \hline
-  \textbf{Optimization Level} & \textbf{File Size (B)} & 
-   \textbf{Runtime (s)} & \textbf{Normalized Runtime} \\
+  \textbf{Optimization Level} & \textbf{File Size (B)} & \textbf{# Dyn. Checks}
+   & \textbf{Runtime (s)} & \textbf{Norm. Runtime} \\
 \hline
-Unchecked & 90900 & 43.8 & 1.00 \\
+Unchecked & 90900 & & 43.8 & 1.00 \\
 \hline
-No Optimization & 95772 & 62.3 & 1.42 \\
+No Optimization & 95772 & & 62.3 & 1.42 \\
 \hline
-Part 2 Optimization & 95189 & 61.4 & 1.40 \\
+Part 2 Optimization & 95189 & & 61.4 & 1.40 \\
 \hline
-Part 2+3 Optimization & 95125 & 51.7 & 1.18 \\
+Part 2+3 Optimization & 95125 & & 51.7 & 1.18 \\
 \hline
 \end{tabular}
 \\\\\\
