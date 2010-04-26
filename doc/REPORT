@@ -115,11 +115,13 @@ P&\text{ - set of nodes such that for } n \in P, succ(n) \cap ND \neq \phi \text
 &e \text{ uses same defs in each successor}\\
 \end{align*}
 
-Once hoisting has been finished any checks contained in the set of basic blocks which dominate all loop exits are examined for potential propagation out of the loop. Since our approach negates the need to examine monotonicity and our approach in Further Bounds Check Pruning is a superset of the for loop propagation Gupta presents the only checks propagated are those which are loop invariant. Since propagation out of loops enables further global elimination it is performed first.
+Once hoisting has been finished any checks contained in the set of basic blocks which dominate all loop exits are examined for potential propagation out of the loop. Since our approach negates the need to examine monotonicity and our approach in Section \label{sec:part3} is a superset of the for loop propagation Gupta presents the only checks propagated are those which are loop invariant. Since propagation out of loops enables further global elimination it is performed first.
 
 This algorithm is of limited use for many standard loops. In the CFG representation of while and for loops that LLVM uses the header and the loop exit are the same basic block and also the only basic block within the loop which dominates the loop exit. Since the header has a successor which is outside the loop, only checks which are common to both inside and outside the loop have the potential to be hoisted into the header and thus considered for propagation out of the loop. This scenario is uncommon in normal code constructs.
 
 \section{Further Bounds Check Pruning}
+
+\label{sec:part3}
 
 \subsection{Profiling Infrastructure in libCheck.cpp}
 
@@ -180,7 +182,7 @@ of array accesses, potentially very quickly.
 \section{Results of Optimization on \texttt{mpeg2-dec}}
 
 The following table summarizes the impact of the optimizations on code size and execution time using a 38 megabyte MPEG stream file:
-
+\\\\
 \begin{tabular}{|l|ccc|}
 \hline
   \textbf{Optimization Level} & \textbf{File Size (B)} & 
@@ -195,5 +197,19 @@ Part 2 Optimization & 95189 & 61.4 & 1.40 \\
 Part 2+3 Optimization & 95125 & 51.7 & 1.18 \\
 \hline
 \end{tabular}
-
+\\\\\\
+\begin{tabular}{|l|cc|}
+\hline
+  \textbf{Optimization Level} & \textbf{Static Checks} & 
+   \textbf{Dynamic Checks} \\
+\hline
+Unchecked & 0 & 0 \\
+\hline
+No Optimization & 619 & 0 \\
+\hline
+Part 2 Optimization & 166 & 0 \\
+\hline
+Part 2+3 Optimization & 121 & 0 \\
+\hline
+\end{tabular}
 \end{document}

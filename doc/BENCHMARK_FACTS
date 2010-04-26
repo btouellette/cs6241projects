@@ -35,30 +35,8 @@ play/CPU time as reported by LAME, used to compute overhead average:
  9:   36.6      38.9
 10:   36.6      39.2
 
-mpeg2dec benchmark
+mpeg2dec benchmark (all default optimizations applied)
 ==========================
-Fully optimized
----------------
-mpeg2dec-checked size:   95125 bytes
-mpeg2dec-unchecked size: 90900 bytes
-mpeg2dec-checked num checks: 121
-
-No flags (time ./mpeg2dec-(un)checked -b Data/orion_2.mpg > /dev/null)
-     Checked   Unchecked
-1:   13.072s   12.646s
-2:   13.149s   12.666s
-3:   12.859s   12.606s
-4:   13.059s   12.569s
-5:   13.076s   12.536s
-
-Flags (time ./mpeg2dec-(un)checked -b Data/orion_2.mpg -q -r -f -o0 rec%d > /dev/null)
-     Checked   Unchecked
-1:   51.817s   43.810s
-2:   51.787s   43.820s
-3:   51.737s   43.997s
-4:   51.593s   43.767s
-5:   51.607s   43.780s
-
 Unoptimized
 -----------
 mpeg2dec-checked size:   95772
@@ -102,3 +80,93 @@ Flags (time ./mpeg2dec-(un)checked -b Data/orion_2.mpg -q -r -f -o0 rec%d > /dev
 3:   61.436s   43.754s
 4:   60.923s   43.760s
 5:   61.619s   46.814s
+
+Fully optimized
+---------------
+mpeg2dec-checked size:   95125 bytes
+mpeg2dec-unchecked size: 90900 bytes
+mpeg2dec-checked num checks: 121
+
+No flags (time ./mpeg2dec-(un)checked -b Data/orion_2.mpg > /dev/null)
+     Checked   Unchecked
+1:   13.072s   12.646s
+2:   13.149s   12.666s
+3:   12.859s   12.606s
+4:   13.059s   12.569s
+5:   13.076s   12.536s
+
+Flags (time ./mpeg2dec-(un)checked -b Data/orion_2.mpg -q -r -f -o0 rec%d > /dev/null)
+     Checked   Unchecked
+1:   51.817s   43.810s
+2:   51.787s   43.820s
+3:   51.737s   43.997s
+4:   51.593s   43.767s
+5:   51.607s   43.780s
+
+mpeg2dec benchmark (no default optimizations applied)
+==========================
+Unoptimized
+-----------
+mpeg2dec-checked size:   85973
+mpeg2dec-unchecked size: 83670
+mpeg2dec-checked num checks: 619
+
+No flags (time ./mpeg2dec-(un)checked -b Data/orion_2.mpg > /dev/null)
+     Checked   Unchecked
+1:   
+2:   
+3:   
+4:   
+5:   
+
+Flags (time ./mpeg2dec-(un)checked -b Data/orion_2.mpg -q -r -f -o0 rec%d > /dev/null)
+     Checked   Unchecked
+1:   
+2:   
+3:   
+4:   
+5:   
+
+Optimized Without Part 3
+------------------------
+mpeg2dec-checked size:   86636
+mpeg2dec-unchecked size: 83670
+mpeg2dec-checked num checks: 166
+
+No flags (time ./mpeg2dec-(un)checked -b Data/orion_2.mpg > /dev/null)
+     Checked   Unchecked
+1:   15.219s   13.899s
+2:   14.902s   13.736s
+3:   15.162s   13.722s
+4:   15.132s   13.569s
+5:   15.202s   13.782s
+
+Flags (time ./mpeg2dec-(un)checked -b Data/orion_2.mpg -q -r -f -o0 rec%d > /dev/null)
+     Checked   Unchecked
+1:   65.896s   59.556s
+2:   65.556s   59.319s
+3:   65.592s   59.546s
+4:   65.449s   59.383s
+5:   65.586s   59.376s
+
+Fully optimized
+---------------
+mpeg2dec-checked size:   85860 bytes
+mpeg2dec-unchecked size: 83670 bytes
+mpeg2dec-checked num checks: 121
+
+No flags (time ./mpeg2dec-(un)checked -b Data/orion_2.mpg > /dev/null)
+     Checked   Unchecked
+1:   14.246s   13.949s
+2:   14.286s   14.022s
+3:   14.142s   13.859s
+4:   14.272s   13.899s
+5:   14.269s   14.096s
+
+Flags (time ./mpeg2dec-(un)checked -b Data/orion_2.mpg -q -r -f -o0 rec%d > /dev/null)
+     Checked   Unchecked
+1:   64.482s   59.333s
+2:   64.606s   59.599s
+3:   64.392s   59.443s
+4:   64.262s   59.383s
+5:   64.262s   60.059s
