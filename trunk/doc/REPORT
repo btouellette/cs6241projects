@@ -105,6 +105,8 @@ Since our target code is already translated to SSA the C\_KILL set will be empty
 
 \subsection{Propagation of Checks Out of Loops}
 
+\label{sec:loop}
+
 If possible checks will be propagated out of loops to reduce the dynamic check count. Checks may be propagated across multiple levels of loops. Gupta outlines three steps for propagation. First, valid basic blocks from which propagation can be done are marked. Valid blocks will dominate all loop exits. Second, checks in blocks which do not dominate all loop exits are hoisted to blocks which do dominate all loop exits when possible. The algorithm for hoisting is shown below.
 \begin{align*}
 ND&\text{ - set of nodes which do not dominate all loop exits}\\
@@ -127,9 +129,10 @@ This algorithm is of limited use for many standard loops. In the CFG representat
 
 \subsection{Profiling Infrastructure in libCheck.cpp}
 
-\begin{itemize}
-\item Tracks address and 
-\end{itemize}
+When libCheck.cpp is compiled with the -Ddebug compiler option, a profiling
+infrastructure is activated, logging each bounds check's address and the number
+of times it is encoutered, and printing the collected addresses and counts, and
+a total, after the program exits.
 
 \subsection{The Most Frequent Checks}
 
@@ -158,5 +161,26 @@ checks can be hoisted to their respective loop headers as shown in Gupta, pages
 145-149.
 
 \subsection{Elimination of the Most Frequent Checks}
+
+These types of accesses, though they would have been caught in other cases by
+Gupta's loop optimizations, for reasons mentioned in Section \ref{sec:loop}
+these optimizations do nothing. For this reason, a new optimization has been
+implemented to perform a specific subset of these loop optimizations provided
+that, as in the most frequent case:
+
+\begin{itemize}
+  \item The induction variable increases monotonically by a constant value.
+  \item The induction variable is initialized with a constant or load from an
+        address not stored to within the loop.
+  \item The loop exits when the induction variable exceeds a bound initialized
+        with a constant or load from an address not stored within the loop.
+  \item The array index is the loop induction variable.
+\end{itemize}
+
+This loop optimization can be applied before any optimization to every array
+access within a loop in the program, complicated only by the fact that the
+induction variables are typically confined to memory by the compiler. This
+implements an important subset of Gupta's loop optimizations on a wider variety
+of array accesses, potentially very quickly.
 
 \end{document}
