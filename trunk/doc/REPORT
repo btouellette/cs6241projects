@@ -50,14 +50,16 @@ array references. A pseudocode version of the added block is presented below:
 The upper bound and index are already part of GCC's internal representation, 
 GIMPLE, and are readily available as parameters to the indexing operation. The
 two casts inserted have no uses and are present only to provide the 
-InsertionChecks pass, described in the next Section, with the locations to place
+InsertionChecks pass, described in Section \ref{sec:insertion}, with the locations to place
 checks and the values to use.
 
 \subsection{InsertChecks Pass}
 
+\label{sec:insertion}
+
 In the LLVM pass, calls into libCheck are added for each array access that was
 marked during compile time. A call to 
-\texttt{__checkArrayBounds(uint64, uint64)} becomes the sole use for the two
+becomes the sole use for the two \texttt{checkArrayBounds(uint64, uint64)} 
 cast instructions. 
 Using a subroutine call, on the hardware level, for each array bound check would
 be prohibitively slow. InsertChecks relies on LLVM's interprocedural optimizer
@@ -85,6 +87,8 @@ to add bound checks.
 \end{itemize}
 
 \section{Bounds Check Pruning}
+
+\label{sec:part2}
 
 \subsection{Constant Removal}
 
@@ -123,7 +127,7 @@ P&\text{ - set of nodes such that for } n \in P, succ(n) \cap ND \neq \phi \text
 &e \text{ uses same defs in each successor}\\
 \end{align*}
 
-Once hoisting has been finished any checks contained in the set of basic blocks which dominate all loop exits are examined for potential propagation out of the loop. Since our approach negates the need to examine monotonicity and our approach in Section \label{sec:part3} is a superset of the for loop propagation Gupta presents the only checks propagated are those which are loop invariant. Since propagation out of loops enables further global elimination it is performed first.
+Once hoisting has been finished any checks contained in the set of basic blocks which dominate all loop exits are examined for potential propagation out of the loop. Since our approach negates the need to examine monotonicity and our approach in Section \ref{sec:part3} is a superset of the for loop propagation Gupta presents the only checks propagated are those which are loop invariant. Since propagation out of loops enables further global elimination it is performed first.
 
 This algorithm is of limited use for many standard loops. In the CFG representation of while and for loops that LLVM uses the header and the loop exit are the same basic block and also the only basic block within the loop which dominates the loop exit. Since the header has a successor which is outside the loop, only checks which are common to both inside and outside the loop have the potential to be hoisted into the header and thus considered for propagation out of the loop. This scenario is uncommon in normal code constructs.
 
@@ -161,7 +165,7 @@ This single three-line inner loop accounts for 9.94 percent of total dynamic
 array bounds checks, and all of the frequent inner loops have similar form. 
 Because b is bounded by npart\_s, which is loop invariant in the outer loop, and
 k is  bounded by a value that is loop invariant in the inner loop, all of the 
-checks can be hoisted to their respective loop headers as shown in Gupta, pages
+checks can be hoisted to their respective loop headers as shown in Gupta '93, pages
 145-149.
 
 \subsection{Elimination of the Most Frequent Checks}
@@ -190,34 +194,46 @@ of array accesses, potentially very quickly.
 \section{Results of Optimization on \texttt{mpeg2-dec}}
 
 The following table summarizes the impact of the optimizations on code size and execution time using a 38 megabyte MPEG stream file:
-\\\\
+
+\begin{table}[ht]
+\caption{Runtime (flags) -- mpeg2dec -b Data/orion\_2.mpg -q -r -f -o0 rec\%d}
+\centering
 \begin{tabular}{|l|ccc|}
 \hline
-  \textbf{Optimization Level} & \textbf{File Size (B)} & \textbf{# Dyn. Checks}
+  \textbf{Optimization Level} & \textbf{File Size (B)}
    & \textbf{Runtime (s)} & \textbf{Norm. Runtime} \\
 \hline
-Unchecked & 90900 & & 43.8 & 1.00 \\
+Unchecked & 90900 & 43.8 & 1.00 \\
 \hline
-No Optimization & 95772 & & 62.3 & 1.42 \\
+No Optimization & 95772 & 62.3 & 1.42 \\
 \hline
-Part 2 Optimization & 95189 & & 61.4 & 1.40 \\
+Part 2 Optimization & 95189 & 61.4 & 1.40 \\
 \hline
-Part 2+3 Optimization & 95125 & & 51.7 & 1.18 \\
-\hline
-\end{tabular}
-\\\\\\
-\begin{tabular}{|l|cc|}
-\hline
-  \textbf{Optimization Level} & \textbf{Static Checks} & 
-   \textbf{Dynamic Checks} \\
-\hline
-Unchecked & 0 & 0 \\
-\hline
-No Optimization & 619 & 0 \\
-\hline
-Part 2 Optimization & 166 & 0 \\
-\hline
-Part 2+3 Optimization & 121 & 0 \\
+Part 2+3 Optimization & 95125 & 51.7 & 1.18 \\
 \hline
 \end{tabular}
+\end{table}
+
+\begin{table}[ht]
+\caption{Runtime (no flags) -- mpeg2dec -b Data/orion\_2.mpg}
+\centering
+\begin{tabular}{|l|ccc|}
+\hline
+  \textbf{Optimization Level} & \textbf{File Size (B)} & 
+   \textbf{Runtime (s)} & \textbf{Normalized Runtime} \\
+\hline
+Unchecked & 90900 & 12.6 & 1.00 \\
+\hline
+No Optimization & 95772 & 13.2 & 1.05 \\
+\hline
+Part 2 Optimization & 95189 & 13.1 & 1.04 \\
+\hline
+Part 2+3 Optimization & 95125 & 13.0 & 1.03 \\
+\hline
+\end{tabular}
+\end{table}
+
+The bounds checking significantly impacts runtime of the benchmark, which is no great surprise since most of the benchmark is array accesses. The optimizations implemented in Section \ref{sec:part2} appear to have little effect but that is due to the fact that the LLVM infrastructure is applying a suite of optimizations that partially cover the optimizations implemented. In particular, constant propagation combined with unreachable code elimination is applied which does the same work as the static bounds checks. Global elimination is also partially covered by the global value numbering pass executed in LLVM which removes fully redundant instructions. Some gain is still seen because the concept of strictness is used in our bound check specific version of the optimizations and cannot be in LLVM's version.
+
+The optimizations implemented in Section \ref{sec:part3} are not subject to this redundancy and they operate primarily on the highly profitable inner loops of the benchmark netting a large decrease in runtime. 
 \end{document}
