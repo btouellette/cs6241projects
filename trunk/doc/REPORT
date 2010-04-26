@@ -64,22 +64,16 @@ checks and the values to use.
 \subsection{Impact}
 
 \begin{itemize}
-\item LAME
-\begin{itemize}
-\item 6.0\% code size increase and 6.1\% execution time increase with no optimization.
-\item Average of 5.97 bytes per bounds check.
-\end{itemize}
-\item mpeg2dec
-\begin{itemize}
-\item 95125 bytes - mpeg2dec-checked (121 static checks)
-\begin{itemize}
-\item timed at 0.030s
-\end{itemize}
-\item 90900 bytes - mpeg2dec-unchecked
-\begin{itemize}
-\item timed at 0.027s
-\end{itemize}
-\end{itemize}
+ \item LAME
+  \begin{itemize}
+   \item 6.0\% code size increase and 6.1\% execution time increase with no optimization.
+   \item Average of 5.97 bytes per bounds check.
+  \end{itemize}
+  \item mpeg2dec
+  \begin{itemize}
+   \item 4.6\% code size increase and 42\% run time increase.
+   \item Average of 6.83 bytes per bounds check.
+  \end{itemize}
 \end{itemize}
 
 \section{Bounds Check Pruning}
@@ -182,5 +176,24 @@ access within a loop in the program, complicated only by the fact that the
 induction variables are typically confined to memory by the compiler. This
 implements an important subset of Gupta's loop optimizations on a wider variety
 of array accesses, potentially very quickly.
+
+\section{Results of Optimization on \texttt{mpeg2-dec}}
+
+The following table summarizes the impact of the optimizations on code size and execution time using a 38 megabyte MPEG stream file:
+
+\begin{tabular}{|l|ccc|}
+\hline
+  \textbf{Optimization Level} & \textbf{File Size (B)} & 
+   \textbf{Runtime (s)} & \textbf{Normalized Runtime} \\
+\hline
+Unchecked & 90900 & 43.8 & 1.00 \\
+\hline
+No Optimization & 95772 & 62.3 & 1.42 \\
+\hline
+Part 2 Optimization & 95189 & 61.4 & 1.40 \\
+\hline
+Part 2+3 Optimization & 95125 & 51.7 & 1.18 \\
+\hline
+\end{tabular}
 
 \end{document}

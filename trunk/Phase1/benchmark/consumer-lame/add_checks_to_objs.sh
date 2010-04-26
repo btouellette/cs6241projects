@@ -4,6 +4,7 @@
 # checks.
 
 PASSES="-BoundChecks -OptimizeChecks -InsertChecks"
+# PASSES="-InsertChecks"
 
 for f in $@; do
     opt -f -load ../../phase1.so $PASSES \
