@@ -36,9 +36,10 @@ int main(int argc, char** argv) {
 
    int c = 97;
    int test[c][c-1];
-   test[39][39] = 1;
-   if(test[39][39] == 1)
-     test[39][39] = 1; 
+   int d = 39;
+   test[d][d] = 1;
+   if(test[d][d] == 1)
+     test[d][d] = 1; 
 
    while(test[35][35] < 10)
    {
@@ -50,7 +51,6 @@ int main(int argc, char** argv) {
      else
        test[29][29] = 1;
    }
-
    // Testing nested loops for hoisting and propagation
    while(argc < 0)
    {
