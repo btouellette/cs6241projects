@@ -1,0 +1,1 @@
+Project repository for GT CS6241. LLVM Implementation of adding array bounds checking to C as well as various optimizations to remove redundant checks. Implemented in 3 LLVM opt passes and a small modification to llvm-gcc.
